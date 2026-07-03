@@ -15,6 +15,17 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "[+] Backend Python dependencies verified." -ForegroundColor Green
 }
 
+# 1b. Install Node.js backend dependencies
+Write-Host "[*] Verifying and installing Node.js backend dependencies..." -ForegroundColor Yellow
+cd backend
+npm install
+cd ..
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[-] Warning: Node.js backend dependencies failed to install." -ForegroundColor Red
+} else {
+    Write-Host "[+] Node.js backend dependencies verified." -ForegroundColor Green
+}
+
 python -m pip install -r collector/requirements.txt -q
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[-] Warning: Some Python collector dependencies failed to install." -ForegroundColor Red
@@ -33,9 +44,9 @@ if (-not (Test-Path ".env")) {
     Write-Host "[+] .env configuration file found." -ForegroundColor Green
 }
 
-# 3. Launch FastAPI Backend
-Write-Host "[*] Launching FastAPI Backend on http://127.0.0.1:8000..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit -Command `"`$Host.UI.RawUI.WindowTitle = 'AI-HIDS Backend Server'; cd backend; python -m uvicorn app.main:app --reload --port 8000`""
+# 3. Launch Express.js Backend (which spawns Flask ML service internally)
+Write-Host "[*] Launching Express.js Backend on http://127.0.0.1:8000..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList "-NoExit -Command `"`$Host.UI.RawUI.WindowTitle = 'AI-HIDS Backend Server'; cd backend; npm run dev`""
 
 # 4. Launch React Frontend
 Write-Host "[*] Launching React Dashboard (Vite dev server)..." -ForegroundColor Yellow

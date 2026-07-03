@@ -17,12 +17,34 @@ class Settings:
     HOST: str = os.getenv("HOST", "127.0.0.1")
     PORT: int = int(os.getenv("PORT", 8000))
     
-    # Path for serialized ML model
     MODEL_DIR: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "detection_models")
-    MODEL_PATH: str = os.path.join(MODEL_DIR, "rf_model.joblib")
-    SCALER_PATH: str = os.path.join(MODEL_DIR, "scaler.joblib")
+
+    @property
+    def MODEL_PATH(self) -> str:
+        import sys
+        suffix = "_windows" if sys.platform == "win32" else "_linux"
+        path = os.path.join(self.MODEL_DIR, f"rf_model{suffix}.joblib")
+        if os.path.exists(path):
+            return path
+        fallback = os.path.join(self.MODEL_DIR, "rf_model.joblib")
+        if os.path.exists(fallback):
+            return fallback
+        return path
+
+    @property
+    def SCALER_PATH(self) -> str:
+        import sys
+        suffix = "_windows" if sys.platform == "win32" else "_linux"
+        path = os.path.join(self.MODEL_DIR, f"scaler{suffix}.joblib")
+        if os.path.exists(path):
+            return path
+        fallback = os.path.join(self.MODEL_DIR, "scaler.joblib")
+        if os.path.exists(fallback):
+            return fallback
+        return path
 
 settings = Settings()
+
 
 # Create model directory if it doesn't exist
 os.makedirs(settings.MODEL_DIR, exist_ok=True)
