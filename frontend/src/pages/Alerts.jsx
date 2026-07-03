@@ -100,8 +100,8 @@ export default function Alerts({ onMitigate }) {
                   </div>
                   
                   <div className="min-w-0">
-                    <h3 className="font-bold text-xs text-gray-300 truncate font-mono">{a.name}</h3>
-                    <span className="text-[10px] text-gray-500 block truncate font-mono">{a.exe || '[Simulated Executable]'}</span>
+                    <h3 className="font-bold text-xs text-gray-300 truncate font-mono">{a.process_name}</h3>
+                    <span className="text-[10px] text-gray-500 block truncate font-mono">{a.process_name || '[Simulated Executable]'}</span>
                   </div>
                   
                   <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-mono mt-1 border-t border-white/5 pt-2">
@@ -128,8 +128,8 @@ export default function Alerts({ onMitigate }) {
             {/* Header Summary */}
             <div className="flex justify-between items-start gap-4">
               <div>
-                <h2 className="text-base font-extrabold text-gray-200 font-mono">Incident Investigation: {selectedAlert.name}</h2>
-                <span className="text-[10px] text-gray-500 font-mono mt-0.5 select-all">PID {selectedAlert.pid} • {selectedAlert.exe || '[Simulated Executable]'}</span>
+                <h2 className="text-base font-extrabold text-gray-200 font-mono">Incident Investigation: {selectedAlert.process_name}</h2>
+                <span className="text-[10px] text-gray-500 font-mono mt-0.5 select-all">PID {selectedAlert.pid} • {selectedAlert.process_name || '[Simulated Executable]'}</span>
               </div>
               <div className="flex flex-col items-end shrink-0">
                 <span className="text-2xl font-black font-mono text-rose-400">{selectedAlert.risk_score.toFixed(0)}%</span>
@@ -137,17 +137,26 @@ export default function Alerts({ onMitigate }) {
               </div>
             </div>
 
-            {/* Explanation box */}
-            {selectedAlert.explanations && selectedAlert.explanations.length > 0 && (
-              <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl flex flex-col gap-2">
+            {/* Explanation & Forensic Report box */}
+            {((selectedAlert.explanations && selectedAlert.explanations.length > 0) || selectedAlert.explanation) && (
+              <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl flex flex-col gap-3">
                 <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <FileWarning className="w-4 h-4" /> Classifier Indicators Triggered
+                  <FileWarning className="w-4 h-4" /> Classifier Indicators & Forensic Report
                 </span>
-                <ul className="flex flex-col gap-1.5 text-xs text-rose-300 font-mono">
-                  {selectedAlert.explanations.map((exp, idx) => (
-                    <li key={idx}>• {exp}</li>
-                  ))}
-                </ul>
+                
+                {selectedAlert.explanations && selectedAlert.explanations.length > 0 && (
+                  <ul className="flex flex-col gap-1.5 text-xs text-rose-300 font-mono border-b border-rose-500/10 pb-3 mb-2">
+                    {selectedAlert.explanations.map((exp, idx) => (
+                      <li key={idx}>• {exp}</li>
+                    ))}
+                  </ul>
+                )}
+                
+                {selectedAlert.explanation && (
+                  <div className="text-xs text-rose-300 font-mono whitespace-pre-wrap leading-relaxed">
+                    {selectedAlert.explanation}
+                  </div>
+                )}
               </div>
             )}
 

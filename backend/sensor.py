@@ -15,13 +15,15 @@ from app.detection.rules import evaluate_rules
 from app.detection.explain import generate_explanation
 
 class Sensor:
-    def __init__(self, on_alert=None, on_heartbeat=None):
+    def __init__(self, on_alert=None, on_telemetry=None, on_event=None):
         """
         on_alert: Callback when a threat is identified locally. Takes a dict alert payload.
-        on_heartbeat: Callback when process sweeps are updated with risk scores. Takes a list of processes.
+        on_telemetry: Callback when process sweeps are updated with risk scores. Takes a list of processes.
+        on_event: Callback for raw file/network/process events.
         """
         self.on_alert = on_alert
-        self.on_heartbeat = on_heartbeat
+        self.on_telemetry = on_telemetry
+        self.on_event = on_event
         
         self.process_histories = {}
         self.collector = None
@@ -38,7 +40,7 @@ class Sensor:
             logger.info("[+] Starting Windows collector & threat detection engine...")
             self.collector = WindowsCollector(
                 on_event=self._handle_raw_event,
-                on_heartbeat=self._handle_raw_heartbeat,
+                on_telemetry=self._handle_raw_telemetry,
                 simulate=simulate
             )
         else:
@@ -46,7 +48,7 @@ class Sensor:
             logger.info("[+] Starting Linux eBPF kernel collector & threat detection engine...")
             self.collector = eBPFCollector(
                 on_event=self._handle_raw_event,
-                on_heartbeat=self._handle_raw_heartbeat
+                on_telemetry=self._handle_raw_telemetry
             )
             
         self.collector.start()
@@ -82,8 +84,8 @@ class Sensor:
             self.process_histories[pid]["name"] = name
         return self.process_histories[pid]
 
-    def _handle_raw_heartbeat(self, processes_list):
-        """Sweeps running processes, runs baseline local predictions, and emits heartbeats."""
+    def _handle_raw_telemetry(self, processes_list):
+        """Sweeps running processes, runs baseline local predictions, and emits process telemetry updates."""
         processed_processes = []
         
         for p in processes_list:
@@ -128,11 +130,13 @@ class Sensor:
                 "cpu_percent": p["cpu_percent"],
                 "memory_percent": p["memory_percent"],
                 "risk_score": ml_result["risk_score"],
-                "classification": ml_result["classification"]
+                "classification": ml_result["classification"],
+                "read_count": history["num_reads"],
+                "write_count": history["num_writes"]
             })
             
-        if self.on_heartbeat:
-            self.on_heartbeat(processed_processes)
+        if self.on_telemetry:
+            self.on_telemetry(processed_processes)
 
     def _handle_raw_event(self, event):
         """Processes live event, evaluates rules + ML locally, and triggers alerts."""
@@ -217,3 +221,7 @@ class Sensor:
             
             if self.on_alert:
                 self.on_alert(alert_payload)
+                
+        # Forward raw event to the telemetry broker
+        if self.on_event:
+            self.on_event(event)

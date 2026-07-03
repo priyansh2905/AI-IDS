@@ -21,7 +21,7 @@ export default function Dashboard() {
 
   // Group-based sensor filters
   const allowedSensorIds = useMemo(() => {
-    if (!currentUser) return [];
+    if (!currentUser || currentUser.role === 'admin') return null;
     
     // Find all group IDs the current user is a member of
     const myGroupIds = groupsList.filter(g => g.members.includes(currentUser.id)).map(g => g.id);
@@ -50,7 +50,7 @@ export default function Dashboard() {
 
   // Scoped alerts list
   const visibleAlerts = useMemo(() => {
-    return alerts.filter(a => allowedSensorIds.includes(a.sensor_id || 'sensor-windows-testing'));
+    return alerts.filter(a => !allowedSensorIds || allowedSensorIds.includes(a.sensor_id || 'sensor-windows-testing'));
   }, [alerts, allowedSensorIds]);
 
   // Scoped groups list

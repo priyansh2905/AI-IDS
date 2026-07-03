@@ -35,22 +35,27 @@ export default function App() {
   const fetchData = async () => {
     if (!token) return;
     try {
-      const pRes = await fetch('/api/processes');
+      // GET latest process snapshot — Express exposes /api/telemetry/latest
+      const pRes = await fetch('/api/telemetry/latest');
       if (pRes.ok) {
         const pData = await pRes.json();
-        dispatch(setProcesses(pData));
+        // Response shape: { status, sensor_id, received_at, data: [...] }
+        dispatch(setProcesses(Array.isArray(pData.data) ? pData.data : []));
       }
       
-      const aRes = await fetch('/api/alerts');
+      // GET alerts list — response shape: { status, total, count, data: [...] }
+      const aRes = await fetch('/api/alerts?limit=100');
       if (aRes.ok) {
         const aData = await aRes.json();
-        dispatch(setAlerts(aData));
+        dispatch(setAlerts(Array.isArray(aData.data) ? aData.data : []));
       }
 
+      // GET raw events — response shape: { status, count, data: [...] }
       const eRes = await fetch('/api/events?limit=80');
       if (eRes.ok) {
         const eData = await eRes.json();
-        dispatch(setEvents(eData.reverse())); // Show oldest first in console streams
+        const eventsArr = Array.isArray(eData.data) ? eData.data : [];
+        dispatch(setEvents([...eventsArr].reverse())); // oldest first in console
       }
     } catch (err) {
       console.error("Failed to fetch initial telemetry data:", err);
@@ -61,10 +66,14 @@ export default function App() {
   const fetchSelectedProcessDetails = async (pid) => {
     if (!token) return;
     try {
-      const res = await fetch(`/api/processes/${pid}`);
+      // Filter the latest telemetry sweep for the specific pid
+      const res = await fetch(`/api/telemetry/latest`);
       if (res.ok) {
         const data = await res.json();
-        dispatch(setSelectedProcessDetails(data));
+        const proc = Array.isArray(data.data)
+          ? data.data.find(p => p.pid === pid)
+          : null;
+        if (proc) dispatch(setSelectedProcessDetails({ process: proc }));
       }
     } catch (err) {
       console.error("Failed to fetch process details:", err);
@@ -92,16 +101,25 @@ export default function App() {
       };
 
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'EVENT') {
-          dispatch(addEvent(msg.data));
-        } else if (msg.type === 'PROCESS_UPDATE') {
-          dispatch(updateProcess(msg.data));
-        } else if (msg.type === 'ALERT') {
-          dispatch(updateAlert(msg.data));
-        } else if (msg.type === 'MITIGATION') {
-          const { pid, status } = msg.data;
-          dispatch(updateMitigation({ pid, status }));
+        try {
+          const msg = JSON.parse(event.data);
+          // Broadcaster sends lowercase type strings: telemetry | alert | event | mitigation_status | alert_update
+          if (msg.type === 'event') {
+            dispatch(addEvent(msg.data));
+          } else if (msg.type === 'telemetry') {
+            // Full sweep — update each process in the list
+            const processes = Array.isArray(msg.data?.processes) ? msg.data.processes : [];
+            processes.forEach(p => dispatch(updateProcess(p)));
+          } else if (msg.type === 'alert') {
+            dispatch(updateAlert(msg.data));
+          } else if (msg.type === 'alert_update') {
+            dispatch(updateAlert(msg.data));
+          } else if (msg.type === 'mitigation_status') {
+            const { pid, type: actionType, status } = msg.data;
+            if (pid) dispatch(updateMitigation({ pid, status: actionType || status }));
+          }
+        } catch (e) {
+          console.warn('[-] Could not parse WS message:', event.data);
         }
       };
 

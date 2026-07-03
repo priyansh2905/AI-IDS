@@ -16,9 +16,10 @@ from app.config import settings
 from sensor import Sensor
 
 # Configuration details
-BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
-HEARTBEAT_ENDPOINT = f"{BACKEND_URL}/api/collector/heartbeat"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
+TELEMETRY_ENDPOINT = f"{BACKEND_URL}/api/telemetry/processes"
 ALERTS_ENDPOINT = f"{BACKEND_URL}/api/alerts"
+EVENTS_ENDPOINT = f"{BACKEND_URL}/api/events"
 
 # Control states
 is_connected = False
@@ -127,8 +128,8 @@ def send_alert(alert_payload):
         # Agent is offline; log directly
         _log_offline_alert(alert_payload)
 
-def send_heartbeat(processes_list):
-    """Sends heartbeat lists if sensor is active."""
+def send_telemetry(processes_list):
+    """Sends process telemetry sweeps if sensor is active."""
     global is_connected
     with state_lock:
         active = sensor_active
@@ -149,12 +150,35 @@ def send_heartbeat(processes_list):
     
     if online:
         try:
-            response = requests.post(HEARTBEAT_ENDPOINT, json=payload, headers=headers, timeout=2.0)
+            response = requests.post(TELEMETRY_ENDPOINT, json=payload, headers=headers, timeout=2.0)
             if response.status_code != 200:
-                logger.warning(f"[-] Heartbeat status code: {response.status_code}")
+                logger.warning(f"[-] Telemetry status code: {response.status_code}")
         except requests.exceptions.RequestException:
             with state_lock:
                 is_connected = False
+
+def send_event(event_payload):
+    """Sends raw file/network/process telemetry events if sensor is active."""
+    global is_connected
+    with state_lock:
+        active = sensor_active
+        online = is_connected
+        
+    if not active:
+        return
+        
+    event_payload["sensor_id"] = settings.SENSOR_ID
+    headers = {
+        "X-Sensor-ID": settings.SENSOR_ID,
+        "X-Sensor-Key": settings.SENSOR_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    if online:
+        try:
+            requests.post(EVENTS_ENDPOINT, json=event_payload, headers=headers, timeout=2.0)
+        except requests.exceptions.RequestException:
+            pass
 
 def connection_monitor_loop():
     """Background loop to ping main backend health and trigger log syncing."""
@@ -243,6 +267,42 @@ def on_ws_message(ws, message):
                 logger.info(f"[+] Remote command: Offline logging set to {enabled}.")
             ws.send(json.dumps({"status": "success", "message": f"Offline logging set to {enabled}", "sensor_id": settings.SENSOR_ID}))
             
+        elif action == "mitigate":
+            pid = cmd.get("pid")
+            mitigation_type = cmd.get("type")  # terminate, quarantine, dismiss
+            logger.info(f"[+] Remote command: Mitigation {mitigation_type} requested for PID {pid}")
+            success = False
+            error_msg = ""
+            
+            try:
+                import psutil
+                proc = psutil.Process(pid)
+                if mitigation_type == "terminate":
+                    proc.kill()
+                    success = True
+                elif mitigation_type == "quarantine":
+                    proc.suspend()
+                    success = True
+                elif mitigation_type == "dismiss":
+                    try:
+                        proc.resume()
+                    except:
+                        pass
+                    success = True
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"[-] Mitigation action failed: {e}")
+                
+            response = {
+                "status": "success" if success else "error",
+                "message": f"Mitigation {mitigation_type} executed" if success else error_msg,
+                "action": "mitigate",
+                "pid": pid,
+                "type": mitigation_type,
+                "sensor_id": settings.SENSOR_ID
+            }
+            ws.send(json.dumps(response))
+            
     except Exception as e:
         logger.error(f"[-] Failed to execute WS command: {e}")
         try:
@@ -257,16 +317,16 @@ def on_ws_close(ws, close_status_code, close_msg):
     logger.warning("[-] WebSocket control link disconnected. Reconnecting in 5s...")
 
 def main():
-    global BACKEND_URL, HEARTBEAT_ENDPOINT, ALERTS_ENDPOINT, sensor_instance
-    global BACKEND_URL, HEARTBEAT_ENDPOINT, ALERTS_ENDPOINT
+    global BACKEND_URL, TELEMETRY_ENDPOINT, ALERTS_ENDPOINT, EVENTS_ENDPOINT, sensor_instance
     parser = argparse.ArgumentParser(description="AI-HIDS Local Intrusion Detection Agent")
     parser.add_argument("--simulate", action="store_true", help="Launch simulated threat generator alongside real processes")
     parser.add_argument("--backend", default=BACKEND_URL, help="FastAPI backend base URL")
     args = parser.parse_args()
     
     BACKEND_URL = args.backend
-    HEARTBEAT_ENDPOINT = f"{BACKEND_URL}/api/collector/heartbeat"
+    TELEMETRY_ENDPOINT = f"{BACKEND_URL}/api/telemetry/processes"
     ALERTS_ENDPOINT = f"{BACKEND_URL}/api/alerts"
+    EVENTS_ENDPOINT = f"{BACKEND_URL}/api/events"
 
     print("=============================================")
     print("      AI-HIDS Local Intrusion Sensor Agent   ")
@@ -274,7 +334,7 @@ def main():
     print(f"[*] Connect target backend: {BACKEND_URL}")
     print("[*] Initializing local detection sensor...")
     
-    sensor_instance = Sensor(on_alert=send_alert, on_heartbeat=send_heartbeat)
+    sensor_instance = Sensor(on_alert=send_alert, on_telemetry=send_telemetry, on_event=send_event)
     
     # Spawn background monitoring threads
     monitor_thread = threading.Thread(target=connection_monitor_loop, daemon=True)

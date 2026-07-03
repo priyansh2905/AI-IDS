@@ -1,66 +1,99 @@
 # AI-HIDS Launcher Script
-# Run this script in PowerShell to launch the full-stack system
+# Starts all services in separate PowerShell windows:
+#   1. FastAPI Analytics Backend  (port 8001)
+#   2. Express.js Main Server     (port 8000)
+#   3. React Vite Frontend        (port 5173)
+#   4. HIDS Telemetry Agent       (simulate mode)
 
 Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "   AI-Powered Host Intrusion Detection System" -ForegroundColor Cyan
+Write-Host "  AI-Powered Host Intrusion Detection System " -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# 1. Install Python dependencies using 'python -m pip' (avoids pip.exe Application Control blocks)
-Write-Host "[*] Verifying and installing Python dependencies..." -ForegroundColor Yellow
+# --- 1. Python Backend Dependencies -------------------------------------------
+Write-Host "[*] Verifying Python dependencies (backend)..." -ForegroundColor Yellow
 python -m pip install -r backend/requirements.txt -q
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[-] Warning: Some Python backend dependencies failed to install. Make sure Python is in your PATH." -ForegroundColor Red
+    Write-Host "[-] Warning: Some Python dependencies failed to install." -ForegroundColor Red
 } else {
-    Write-Host "[+] Backend Python dependencies verified." -ForegroundColor Green
+    Write-Host "[+] Python dependencies OK." -ForegroundColor Green
 }
 
-# 1b. Install Node.js backend dependencies
-Write-Host "[*] Verifying and installing Node.js backend dependencies..." -ForegroundColor Yellow
-cd backend
-npm install
-cd ..
+# --- 2. Node.js Dependencies (main_server) ------------------------------------
+Write-Host "[*] Verifying Node.js main_server dependencies..." -ForegroundColor Yellow
+Push-Location main_server
+npm install --silent
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[-] Warning: Node.js backend dependencies failed to install." -ForegroundColor Red
+    Write-Host "[-] Warning: main_server npm install failed. Make sure Node.js is in your PATH." -ForegroundColor Red
 } else {
-    Write-Host "[+] Node.js backend dependencies verified." -ForegroundColor Green
+    Write-Host "[+] main_server Node.js dependencies OK." -ForegroundColor Green
 }
+Pop-Location
 
-python -m pip install -r collector/requirements.txt -q
+# --- 3. Node.js Dependencies (frontend) ---------------------------------------
+Write-Host "[*] Verifying Node.js frontend dependencies..." -ForegroundColor Yellow
+Push-Location frontend
+npm install --silent
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[-] Warning: Some Python collector dependencies failed to install." -ForegroundColor Red
+    Write-Host "[-] Warning: frontend npm install failed." -ForegroundColor Red
 } else {
-    Write-Host "[+] Collector Python dependencies verified." -ForegroundColor Green
+    Write-Host "[+] frontend Node.js dependencies OK." -ForegroundColor Green
 }
+Pop-Location
 
-# 2. Check for .env file and remind the user
+Write-Host ""
+
+# --- 4. Check .env ------------------------------------------------------------
 if (-not (Test-Path ".env")) {
     Write-Host "[!] WARNING: No .env file found in project root." -ForegroundColor Red
-    Write-Host "    Create a .env file with your MONGODB_URI to use MongoDB Atlas." -ForegroundColor Yellow
+    Write-Host "    Create a .env with MONGODB_URI, EXPRESS_PORT, and FASTAPI_URL." -ForegroundColor Yellow
     Write-Host "    Example: MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/hids_db" -ForegroundColor Yellow
-    Write-Host "    If no .env is provided, the system will fall back to a local MongoDB or SQLite." -ForegroundColor Yellow
-    Write-Host ""
 } else {
     Write-Host "[+] .env configuration file found." -ForegroundColor Green
 }
 
-# 3. Launch Express.js Backend (which spawns Flask ML service internally)
-Write-Host "[*] Launching Express.js Backend on http://127.0.0.1:8000..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit -Command `"`$Host.UI.RawUI.WindowTitle = 'AI-HIDS Backend Server'; cd backend; npm run dev`""
-
-# 4. Launch React Frontend
-Write-Host "[*] Launching React Dashboard (Vite dev server)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit -Command `"`$Host.UI.RawUI.WindowTitle = 'AI-HIDS Frontend Dev'; cd frontend; npx vite --port 5173`""
-
-# 5. Launch Windows Telemetry Collector (with threat simulator active)
-Write-Host "[*] Launching Windows Telemetry Collector agent (simulation mode active)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit -Command `"`$Host.UI.RawUI.WindowTitle = 'AI-HIDS Windows Telemetry Agent'; cd collector; python windows_collector.py --simulate`""
-
 Write-Host ""
+
+# Capture project root once so subshells get the correct absolute path
+$ProjectRoot = $PWD.Path
+
+# --- 5. Launch FastAPI Analytics Backend (port 8001) --------------------------
+Write-Host "[*] Launching FastAPI Analytics Backend on http://127.0.0.1:8001..." -ForegroundColor Yellow
+$fastapiCmd = "Set-Location '$ProjectRoot\backend'; `$Host.UI.RawUI.WindowTitle = 'AI-HIDS FastAPI Backend'; python -m uvicorn main:app --host 127.0.0.1 --port 8001 --reload"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $fastapiCmd
+Start-Sleep -Seconds 2
+
+# --- 6. Launch Express.js Main Server (port 8000) -----------------------------
+Write-Host "[*] Launching Express.js Main Server on http://127.0.0.1:8000..." -ForegroundColor Yellow
+$expressCmd = "Set-Location '$ProjectRoot\main_server'; `$Host.UI.RawUI.WindowTitle = 'AI-HIDS Express Server'; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $expressCmd
+Start-Sleep -Seconds 2
+
+# --- 7. Launch React Frontend (port 5173) -------------------------------------
+Write-Host "[*] Launching React Dashboard (Vite) on http://localhost:5173..." -ForegroundColor Yellow
+$frontendCmd = "Set-Location '$ProjectRoot\frontend'; `$Host.UI.RawUI.WindowTitle = 'AI-HIDS Frontend'; npx vite --port 5173"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd
+Start-Sleep -Seconds 2
+
+# --- 8. Launch HIDS Agent (simulation mode) -----------------------------------
+Write-Host "[*] Launching HIDS Telemetry Agent (simulate mode)..." -ForegroundColor Yellow
+$agentCmd = "Set-Location '$ProjectRoot\backend'; `$Host.UI.RawUI.WindowTitle = 'AI-HIDS Agent'; python agent.py --simulate --backend http://127.0.0.1:8001"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $agentCmd
+
+# --- Summary ------------------------------------------------------------------
+Write-Host ""
+Write-Host "=============================================" -ForegroundColor Green
 Write-Host "[+] All services are starting up!" -ForegroundColor Green
-Write-Host "    - Dashboard:    http://localhost:5173" -ForegroundColor Cyan
-Write-Host "    - Backend API:  http://127.0.0.1:8000/docs" -ForegroundColor Cyan
-Write-Host "    - WebSocket:    ws://127.0.0.1:8000/ws" -ForegroundColor Cyan
+Write-Host "=============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Press any key to exit this launcher..." -ForegroundColor Gray
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Write-Host "  Service            URL" -ForegroundColor White
+Write-Host "  React Dashboard -> http://localhost:5173" -ForegroundColor Cyan
+Write-Host "  Express API     -> http://127.0.0.1:8000/api/health" -ForegroundColor Cyan
+Write-Host "  Express WS      -> ws://127.0.0.1:8000/ws" -ForegroundColor Cyan
+Write-Host "  FastAPI Docs    -> http://127.0.0.1:8001/docs" -ForegroundColor Cyan
+Write-Host "  MongoDB         -> mongodb://localhost:27017/hids_db" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Data Flow: HIDS Agent -> FastAPI (8001) -> Express (8000) -> Frontend (5173)" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "Press any key to close this launcher window..." -ForegroundColor Gray
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')

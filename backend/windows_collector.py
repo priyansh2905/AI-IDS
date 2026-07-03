@@ -7,15 +7,15 @@ import random
 from datetime import datetime
 
 class WindowsCollector:
-    def __init__(self, on_event=None, on_heartbeat=None, simulate=False):
+    def __init__(self, on_event=None, on_telemetry=None, simulate=False):
         """
         on_event: callback function triggered for every system event, taking a dict:
                   { pid, process_name, event_type, action, target_path, details, timestamp }
-        on_heartbeat: callback function triggered for every process sweep, taking a list of process dicts:
+        on_telemetry: callback function triggered for every process sweep, taking a list of process dicts:
                       [{ pid, name, exe, cmdline, username, parent_pid, parent_name, cpu_percent, memory_percent }]
         """
         self.on_event = on_event
-        self.on_heartbeat = on_heartbeat
+        self.on_telemetry = on_telemetry
         self.simulate = simulate
         
         self.seen_files = {} # { pid: set(files) }
@@ -98,11 +98,11 @@ class WindowsCollector:
 
     def _collector_loop(self):
         while not self.stop_event.is_set():
-            self._scan_heartbeat()
+            self._scan_telemetry()
             # Sweep interval
             time.sleep(3)
 
-    def _scan_heartbeat(self):
+    def _scan_telemetry(self):
         processes_payload = []
         current_pids = set()
         
@@ -128,9 +128,9 @@ class WindowsCollector:
 
         self.known_pids = current_pids
 
-        # Emit the heartbeat summary callback
-        if self.on_heartbeat:
-            self.on_heartbeat(processes_payload)
+        # Emit the telemetry summary callback
+        if self.on_telemetry:
+            self.on_telemetry(processes_payload)
 
     def _scan_process_connections_and_files(self, proc, proc_name):
         pid = proc.pid
@@ -247,8 +247,8 @@ class WindowsCollector:
             }
         ]
         
-        if self.on_heartbeat:
-            self.on_heartbeat(simulated_processes)
+        if self.on_telemetry:
+            self.on_telemetry(simulated_processes)
             
         while not self.stop_event.is_set():
             mode = random.choice(["benign", "ransomware", "credential", "shell"])

@@ -114,9 +114,9 @@ int syscall__connect(struct pt_regs *ctx, int sockfd, struct sockaddr *addr, int
 """
 
 class eBPFCollector:
-    def __init__(self, on_event=None, on_heartbeat=None):
+    def __init__(self, on_event=None, on_telemetry=None):
         self.on_event = on_event
-        self.on_heartbeat = on_heartbeat
+        self.on_telemetry = on_telemetry
         self.stop_event = threading.Event()
         self.bpf_instance = None
         self.polling_thread = None
@@ -187,17 +187,17 @@ class eBPFCollector:
 
     def _poll_loop(self):
         import psutil
-        last_heartbeat = 0
+        last_telemetry = 0
         
         while not self.stop_event.is_set():
             # Poll kernel buffer
             self.bpf_instance.perf_buffer_poll(timeout=100)
             
-            # Send process heartbeats every 3 seconds
+            # Send process telemetry updates every 3 seconds
             now = time.time()
-            if now - last_heartbeat > 3.0:
+            if now - last_telemetry > 3.0:
                 self._scan_linux_processes()
-                last_heartbeat = now
+                last_telemetry = now
 
     def _scan_linux_processes(self):
         import psutil
@@ -225,5 +225,5 @@ class eBPFCollector:
             except:
                 continue
                 
-        if self.on_heartbeat:
-            self.on_heartbeat(payload)
+        if self.on_telemetry:
+            self.on_telemetry(payload)
