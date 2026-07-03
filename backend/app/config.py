@@ -17,6 +17,10 @@ class Settings:
     HOST: str = os.getenv("HOST", "127.0.0.1")
     PORT: int = int(os.getenv("PORT", 8000))
     
+    # Sensor authorization configurations
+    SENSOR_ID: str = os.getenv("SENSOR_ID", "sensor-windows-testing")
+    SENSOR_KEY: str = os.getenv("SENSOR_KEY", "testing-secure-key-321")
+    
     MODEL_DIR: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "detection_models")
 
     @property

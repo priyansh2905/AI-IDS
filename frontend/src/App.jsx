@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   setProcesses, updateProcess, 
@@ -15,17 +15,23 @@ import Header from './components/Header';
 import ProcessDetailsDrawer from './components/ProcessDetailsDrawer';
 
 // Pages
+import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Alerts from './pages/Alerts';
 import MLEngine from './pages/MLEngine';
 import Mitigations from './pages/Mitigations';
+import Groups from './pages/Groups';
+import AdminConsole from './pages/AdminConsole';
 
 export default function App() {
   const dispatch = useDispatch();
+  const token = useSelector((state) => state.hids.token);
+  const currentUser = useSelector((state) => state.hids.user);
   const selectedPid = useSelector((state) => state.hids.selectedPid);
 
   // Fetch initial processes, alerts, events
   const fetchData = async () => {
+    if (!token) return;
     try {
       const pRes = await fetch('/api/processes');
       if (pRes.ok) {
@@ -51,6 +57,7 @@ export default function App() {
 
   // Poll details of selected process
   const fetchSelectedProcessDetails = async (pid) => {
+    if (!token) return;
     try {
       const res = await fetch(`/api/processes/${pid}`);
       if (res.ok) {
@@ -63,11 +70,14 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (token) {
+      fetchData();
+    }
+  }, [token]);
 
-  // WebSockets Connection
+  // WebSockets Connection (Only when logged in)
   useEffect(() => {
+    if (!token) return;
     let ws;
     const connectWS = () => {
       const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -109,15 +119,15 @@ export default function App() {
     return () => {
       if (ws) ws.close();
     };
-  }, [dispatch]);
+  }, [dispatch, token]);
 
   // Polling selected process details
   useEffect(() => {
-    if (!selectedPid) return;
+    if (!selectedPid || !token) return;
     fetchSelectedProcessDetails(selectedPid);
     const interval = setInterval(() => fetchSelectedProcessDetails(selectedPid), 3000);
     return () => clearInterval(interval);
-  }, [selectedPid]);
+  }, [selectedPid, token]);
 
   // Mitigation API call handler
   const handleMitigate = async (pid, action) => {
@@ -129,7 +139,6 @@ export default function App() {
       });
       if (res.ok) {
         const resData = await res.json();
-        // Socket update will broadcast state changes, but we verify locally immediately
         if (selectedPid === pid) {
           fetchSelectedProcessDetails(pid);
         }
@@ -140,8 +149,14 @@ export default function App() {
     }
   };
 
+  // 1. ROUTE GUARD: Redirect to login if token is absent
+  if (!token) {
+    return <Auth />;
+  }
+
+  // 2. MAIN LAYOUT FOR AUTHENTICATED USERS
   return (
-    <div className="min-h-screen bg-slate-950 text-gray-100 flex p-5 gap-6 font-sans antialiased overflow-hidden">
+    <div className="min-h-screen bg-slate-950 text-gray-100 flex p-5 gap-6 font-sans antialiased overflow-hidden w-full">
       {/* Sidebar Navigation */}
       <Sidebar />
 
@@ -153,8 +168,15 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/alerts" element={<Alerts onMitigate={handleMitigate} />} />
+            <Route path="/groups" element={<Groups />} />
             <Route path="/ml-model" element={<MLEngine />} />
             <Route path="/mitigations" element={<Mitigations />} />
+            
+            {/* Guarded Admin Console Route */}
+            <Route 
+              path="/admin" 
+              element={currentUser?.role === 'admin' ? <AdminConsole /> : <Navigate to="/" replace />} 
+            />
           </Routes>
         </main>
       </div>

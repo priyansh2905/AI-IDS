@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { Brain, Settings, Play, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { Brain, Settings, Play, CheckCircle2, AlertCircle, Info, Lock } from 'lucide-react';
 
 export default function MLEngine() {
+  const currentUser = useSelector((state) => state.hids.user);
+  const hasPermission = currentUser && (currentUser.role === 'admin' || currentUser.role === 'type-2');
+
   const [isTraining, setIsTraining] = useState(false);
   const [trainResult, setTrainResult] = useState(null); // { success: boolean, message: string } | null
 
@@ -122,11 +126,19 @@ export default function MLEngine() {
           )}
 
           <button
-            disabled={isTraining}
+            disabled={!hasPermission || isTraining}
             onClick={handleRetrain}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-800 disabled:text-gray-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer disabled:cursor-not-allowed transition-all shadow-md shadow-indigo-950/30"
+            className={`w-full flex items-center justify-center gap-2 py-3 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all shadow-md ${
+              !hasPermission 
+                ? 'bg-slate-800 text-gray-500 cursor-not-allowed border border-white/5 shadow-none' 
+                : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer shadow-indigo-950/30'
+            }`}
           >
-            {isTraining ? (
+            {!hasPermission ? (
+              <>
+                <Lock className="w-4 h-4" /> Controls Locked
+              </>
+            ) : isTraining ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 Fitting Decision Trees...
@@ -137,6 +149,11 @@ export default function MLEngine() {
               </>
             )}
           </button>
+          {!hasPermission && (
+            <p className="text-[9px] text-rose-400 font-mono text-center mt-1">
+              * Action restricted to Host Operators (Type-2) or Admins
+            </p>
+          )}
         </div>
 
         {/* INFO NOTICE */}

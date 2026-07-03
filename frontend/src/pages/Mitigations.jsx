@@ -4,12 +4,44 @@ import { ShieldAlert, ShieldCheck, Ban, History, Clock } from 'lucide-react';
 
 export default function Mitigations() {
   const processes = useSelector((state) => state.hids.processes);
-  const alerts = useSelector((state) => state.hids.alerts);
+  const currentUser = useSelector((state) => state.hids.user);
+  const groupsList = useSelector((state) => state.hids.groupsList);
+  const usersList = useSelector((state) => state.hids.usersList);
+
+  // Group-based sensor filtering
+  const allowedSensorIds = React.useMemo(() => {
+    if (!currentUser || currentUser.role === 'admin') return null;
+    
+    const myGroupIds = groupsList.filter(g => g.members.includes(currentUser.id)).map(g => g.id);
+    const memberIds = new Set();
+    groupsList.forEach(g => {
+      if (myGroupIds.includes(g.id)) {
+        g.members.forEach(uid => memberIds.add(uid));
+      }
+    });
+    
+    if (currentUser.role === 'type-2') {
+      memberIds.add(currentUser.id);
+    }
+    
+    const sensorIds = new Set();
+    usersList.forEach(u => {
+      if (memberIds.has(u.id) && u.role === 'type-2' && u.sensor_id) {
+        sensorIds.add(u.sensor_id);
+      }
+    });
+    return Array.from(sensorIds);
+  }, [currentUser, groupsList, usersList]);
+
+  const visibleProcesses = React.useMemo(() => {
+    return processes.filter(p => !allowedSensorIds || allowedSensorIds.includes(p.sensor_id || 'sensor-windows-testing'));
+  }, [processes, allowedSensorIds]);
 
   // Filter processes that are Quarantined, Terminated, or Ignored
-  const mitigatedProcesses = processes.filter(p => 
+  const mitigatedProcesses = visibleProcesses.filter(p => 
     p.status === 'Quarantined' || p.status === 'Terminated' || p.status === 'Ignored'
   );
+
 
   return (
     <div className="flex-1 bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-4 shadow-lg min-h-[500px]">

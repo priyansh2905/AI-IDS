@@ -4,12 +4,46 @@ import { AlertTriangle, Clock, ShieldCheck, Ban, FileWarning, HelpCircle } from 
 
 export default function Alerts({ onMitigate }) {
   const alerts = useSelector((state) => state.hids.alerts);
+  const currentUser = useSelector((state) => state.hids.user);
+  const groupsList = useSelector((state) => state.hids.groupsList);
+  const usersList = useSelector((state) => state.hids.usersList);
+
   const [selectedAlertIdx, setSelectedAlertIdx] = useState(0);
   const [confirmMitigate, setConfirmMitigate] = useState(null); // { pid, action }
   const [isExecuting, setIsExecuting] = useState(false);
 
-  const activeAlerts = alerts.filter(a => a.status === 'Active');
+  // Group-based sensor filtering
+  const allowedSensorIds = React.useMemo(() => {
+    if (!currentUser || currentUser.role === 'admin') return null;
+    
+    const myGroupIds = groupsList.filter(g => g.members.includes(currentUser.id)).map(g => g.id);
+    const memberIds = new Set();
+    groupsList.forEach(g => {
+      if (myGroupIds.includes(g.id)) {
+        g.members.forEach(uid => memberIds.add(uid));
+      }
+    });
+    
+    if (currentUser.role === 'type-2') {
+      memberIds.add(currentUser.id);
+    }
+    
+    const sensorIds = new Set();
+    usersList.forEach(u => {
+      if (memberIds.has(u.id) && u.role === 'type-2' && u.sensor_id) {
+        sensorIds.add(u.sensor_id);
+      }
+    });
+    return Array.from(sensorIds);
+  }, [currentUser, groupsList, usersList]);
+
+  const visibleAlerts = React.useMemo(() => {
+    return alerts.filter(a => !allowedSensorIds || allowedSensorIds.includes(a.sensor_id || 'sensor-windows-testing'));
+  }, [alerts, allowedSensorIds]);
+
+  const activeAlerts = visibleAlerts.filter(a => a.status === 'Active');
   const selectedAlert = activeAlerts[selectedAlertIdx];
+
 
   const handleMitigateAction = async (pid, action) => {
     setIsExecuting(true);

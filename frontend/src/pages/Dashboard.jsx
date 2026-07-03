@@ -12,18 +12,64 @@ export default function Dashboard() {
   const searchQuery = useSelector((state) => state.hids.searchQuery);
   const filterSeverity = useSelector((state) => state.hids.filterSeverity);
 
+  const currentUser = useSelector((state) => state.hids.user);
+  const groupsList = useSelector((state) => state.hids.groupsList);
+  const usersList = useSelector((state) => state.hids.usersList);
+
   const eventEndRef = useRef(null);
+
+  // Group-based sensor filtering
+  const allowedSensorIds = useMemo(() => {
+    if (!currentUser || currentUser.role === 'admin') return null;
+    
+    // Find all group IDs the current user is a member of
+    const myGroupIds = groupsList.filter(g => g.members.includes(currentUser.id)).map(g => g.id);
+    
+    // Find all user IDs in those groups
+    const memberIds = new Set();
+    groupsList.forEach(g => {
+      if (myGroupIds.includes(g.id)) {
+        g.members.forEach(uid => memberIds.add(uid));
+      }
+    });
+    
+    // Add self to visibility set if type-2
+    if (currentUser.role === 'type-2') {
+      memberIds.add(currentUser.id);
+    }
+    
+    const sensorIds = new Set();
+    usersList.forEach(u => {
+      if (memberIds.has(u.id) && u.role === 'type-2' && u.sensor_id) {
+        sensorIds.add(u.sensor_id);
+      }
+    });
+    return Array.from(sensorIds);
+  }, [currentUser, groupsList, usersList]);
+
+  // Filter visible items
+  const visibleProcesses = useMemo(() => {
+    return processes.filter(p => !allowedSensorIds || allowedSensorIds.includes(p.sensor_id || 'sensor-windows-testing'));
+  }, [processes, allowedSensorIds]);
+
+  const visibleAlerts = useMemo(() => {
+    return alerts.filter(a => !allowedSensorIds || allowedSensorIds.includes(a.sensor_id || 'sensor-windows-testing'));
+  }, [alerts, allowedSensorIds]);
+
+  const visibleEvents = useMemo(() => {
+    return events.filter(e => !allowedSensorIds || allowedSensorIds.includes(e.sensor_id || 'sensor-windows-testing'));
+  }, [events, allowedSensorIds]);
 
   // Auto-scroll event logs
   useEffect(() => {
     if (eventEndRef.current) {
       eventEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [events]);
+  }, [visibleEvents]);
 
   // Processes filtering
   const filteredProcesses = useMemo(() => {
-    return processes.filter(p => {
+    return visibleProcesses.filter(p => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           p.pid.toString().includes(searchQuery);
       
@@ -35,20 +81,21 @@ export default function Dashboard() {
       
       return matchSearch && matchSeverity;
     });
-  }, [processes, searchQuery, filterSeverity]);
+  }, [visibleProcesses, searchQuery, filterSeverity]);
 
   // Statistics calculation
   const stats = useMemo(() => {
-    const total = processes.length;
-    const activeThreats = alerts.filter(a => a.status === 'Active').length;
-    const maxRisk = processes.length > 0 ? Math.max(...processes.map(p => p.risk_score)) : 0;
+    const total = visibleProcesses.length;
+    const activeThreats = visibleAlerts.filter(a => a.status === 'Active').length;
+    const maxRisk = visibleProcesses.length > 0 ? Math.max(...visibleProcesses.map(p => p.risk_score)) : 0;
     
     let systemState = 'SECURE';
     if (maxRisk >= 70) systemState = 'COMPROMISED';
     else if (maxRisk >= 40) systemState = 'WARNING';
 
     return { total, activeThreats, maxRisk, systemState };
-  }, [processes, alerts]);
+  }, [visibleProcesses, visibleAlerts]);
+
 
   return (
     <div className="flex flex-col gap-6 flex-1 min-w-0">
@@ -218,12 +265,12 @@ export default function Dashboard() {
           </div>
 
           <div className="flex-1 bg-slate-950/80 border border-white/5 rounded-xl p-4 overflow-y-auto max-h-[520px] font-mono text-[11px] leading-relaxed text-gray-400 flex flex-col gap-3 shadow-inner">
-            {events.length === 0 ? (
+            {visibleEvents.length === 0 ? (
               <div className="h-full flex items-center justify-center text-gray-600">
                 Waiting for host sensor link...
               </div>
             ) : (
-              events.map((e, idx) => {
+              visibleEvents.map((e, idx) => {
                 let colorClass = 'text-cyan-400';
                 if (e.event_type === 'file') {
                   colorClass = e.action === 'write' ? 'text-amber-400' : 'text-emerald-400';
