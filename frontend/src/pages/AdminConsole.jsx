@@ -1,14 +1,17 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { deleteUser, deleteGroup } from '../store/hidsSlice';
+import { deleteUser } from '../store/userSlice';
+import { deleteGroup } from '../store/groupSlice';
 import { Users, ShieldAlert, Trash2, Fingerprint, Activity, Radio } from 'lucide-react';
 
 export default function AdminConsole() {
   const dispatch = useDispatch();
-  const currentUser = useSelector((state) => state.hids.user);
-  const usersList = useSelector((state) => state.hids.usersList);
-  const groupsList = useSelector((state) => state.hids.groupsList);
-  const processes = useSelector((state) => state.hids.processes);
+
+  // Selectors mapped to separate store slices
+  const currentUser = useSelector((state) => state.user.user);
+  const usersList = useSelector((state) => state.user.usersList);
+  const groupsList = useSelector((state) => state.group.groupsList);
+  const processes = useSelector((state) => state.telemetry.processes);
 
   // Statistics
   const totalUsers = usersList.length;
@@ -117,7 +120,7 @@ export default function AdminConsole() {
         <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-4 shadow-lg min-h-[420px]">
           <div>
             <h2 className="text-sm font-extrabold tracking-wider uppercase text-gray-200 font-mono flex items-center gap-1.5">
-              <ShieldAlert className="w-4.5 h-4.5 text-cyan-400" /> Manage Security Groups
+              <Activity className="w-4.5 h-4.5 text-cyan-400" /> Manage Security Groups
             </h2>
             <p className="text-[10px] text-gray-500 font-mono mt-0.5">Audit, dissolve, and delete collaborative group cells</p>
           </div>

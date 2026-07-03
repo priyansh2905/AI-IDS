@@ -1,22 +1,30 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logoutUser } from '../store/hidsSlice';
+import { logoutUser } from '../store/userSlice';
 import { LayoutDashboard, AlertTriangle, Brain, Ban, Users, ShieldAlert, LogOut, User } from 'lucide-react';
 
 export default function Sidebar() {
   const dispatch = useDispatch();
-  const currentUser = useSelector((state) => state.hids.user);
+  const currentUser = useSelector((state) => state.user.user);
 
   const menuItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/alerts', label: 'Alerts Center', icon: AlertTriangle },
-    { path: '/groups', label: 'Groups Cell', icon: Users },
-    { path: '/ml-model', label: 'ML Engine', icon: Brain },
-    { path: '/mitigations', label: 'Mitigations', icon: Ban },
+    { path: '/', label: 'Dashboard', icon: LayoutDashboard }
   ];
 
-  // Dynamically append Admin Console if current user is admin
+  // Hide Alerts Center and ML Engine from Type-1 Monitors
+  if (currentUser && currentUser.role !== 'type-1') {
+    menuItems.push({ path: '/alerts', label: 'Alerts Center', icon: AlertTriangle });
+  }
+
+  menuItems.push({ path: '/groups', label: 'Groups Cell', icon: Users });
+
+  if (currentUser && currentUser.role !== 'type-1') {
+    menuItems.push({ path: '/ml-model', label: 'ML Engine', icon: Brain });
+  }
+
+  menuItems.push({ path: '/mitigations', label: 'Mitigations', icon: Ban });
+
   if (currentUser && currentUser.role === 'admin') {
     menuItems.push({ path: '/admin', label: 'Admin Console', icon: ShieldAlert });
   }

@@ -3,10 +3,11 @@ import { useSelector } from 'react-redux';
 import { ShieldAlert, ShieldCheck, Ban, History, Clock } from 'lucide-react';
 
 export default function Mitigations() {
-  const processes = useSelector((state) => state.hids.processes);
-  const currentUser = useSelector((state) => state.hids.user);
-  const groupsList = useSelector((state) => state.hids.groupsList);
-  const usersList = useSelector((state) => state.hids.usersList);
+  // Selectors mapped to separate store slices
+  const processes = useSelector((state) => state.telemetry.processes);
+  const currentUser = useSelector((state) => state.user.user);
+  const groupsList = useSelector((state) => state.group.groupsList);
+  const usersList = useSelector((state) => state.user.usersList);
 
   // Group-based sensor filtering
   const allowedSensorIds = React.useMemo(() => {
@@ -42,7 +43,6 @@ export default function Mitigations() {
     p.status === 'Quarantined' || p.status === 'Terminated' || p.status === 'Ignored'
   );
 
-
   return (
     <div className="flex-1 bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-4 shadow-lg min-h-[500px]">
       <div>
@@ -65,52 +65,39 @@ export default function Mitigations() {
           <tbody>
             {mitigatedProcesses.length === 0 ? (
               <tr>
-                <td colSpan="6" className="p-12 text-center text-gray-600 font-mono">
-                  <div className="flex flex-col items-center gap-2 justify-center">
-                    <History className="w-6 h-6 text-white/5" />
-                    <span>No process remediations logged in current session.</span>
-                  </div>
+                <td colSpan="6" className="p-8 text-center text-gray-600 font-mono">
+                  No historical mitigation logs available.
                 </td>
               </tr>
             ) : (
-              mitigatedProcesses.map(p => {
-                let badgeClass = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
-                let icon = <Clock className="w-3.5 h-3.5" />;
-                if (p.status === 'Terminated') {
-                  badgeClass = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-                  icon = <Ban className="w-3.5 h-3.5 text-rose-400" />;
-                } else if (p.status === 'Quarantined') {
-                  badgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-                  icon = <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />;
+              mitigatedProcesses.map((p) => {
+                let badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                let icon = <Ban className="w-3.5 h-3.5" />;
+                
+                if (p.status === 'Quarantined') {
+                  badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                  icon = <ShieldAlert className="w-3.5 h-3.5" />;
                 } else if (p.status === 'Ignored') {
-                  badgeClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-                  icon = <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />;
+                  badgeColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+                  icon = <ShieldCheck className="w-3.5 h-3.5" />;
                 }
-
+                
                 return (
-                  <tr key={p.pid} className="border-b border-white/5 bg-slate-950/5">
-                    <td className="p-3 font-bold font-mono text-gray-300">{p.pid}</td>
+                  <tr key={p.pid} className="border-b border-white/5 font-mono text-xs">
+                    <td className="p-3 text-gray-300 font-bold select-all">{p.pid}</td>
+                    <td className="p-3 text-gray-200">{p.name}</td>
+                    <td className="p-3 uppercase font-bold tracking-wider">{p.status === 'Terminated' ? 'SIGKILL' : p.status === 'Quarantined' ? 'ISOLATE' : 'DISMISS'}</td>
+                    <td className="p-3 text-rose-400 font-bold">{p.risk_score.toFixed(0)}%</td>
                     <td className="p-3">
-                      <div className="flex flex-col max-w-[200px]">
-                        <span className="font-semibold text-gray-200">{p.name}</span>
-                        <span className="text-[9px] text-gray-500 font-mono truncate" title={p.exe}>{p.exe}</span>
-                      </div>
-                    </td>
-                    <td className="p-3 font-mono font-semibold text-gray-300">
-                      {p.status === 'Terminated' ? 'TASKKILL /F' : p.status === 'Quarantined' ? 'SUSPEND_PROCESS' : 'IGNORE_ALERTS'}
-                    </td>
-                    <td className="p-3">
-                      <span className={`font-bold font-mono ${
-                        p.risk_score >= 50 ? 'text-rose-400' : p.risk_score >= 20 ? 'text-amber-400' : 'text-emerald-400'
-                      }`}>{p.risk_score.toFixed(0)}%</span>
-                    </td>
-                    <td className="p-3">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[9px] font-bold font-mono ${badgeClass}`}>
-                        {icon} {p.status.toUpperCase()}
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-[9px] font-bold uppercase tracking-wider ${badgeColor}`}>
+                        {icon} {p.status}
                       </span>
                     </td>
-                    <td className="p-3 font-mono text-gray-400">
-                      {new Date(p.last_seen || Date.now()).toLocaleString()}
+                    <td className="p-3 text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <History className="w-3 h-3 text-gray-500" />
+                        <span>{p.timestamp ? new Date(p.timestamp).toLocaleString() : new Date().toLocaleString()}</span>
+                      </div>
                     </td>
                   </tr>
                 );

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { createGroup, exitGroup, joinRequestGroup, approveJoinRequest } from '../store/hidsSlice';
-import { Users, Plus, UserPlus, Check, X, LogOut, Clock, Shield } from 'lucide-react';
+import { createGroup, exitGroup, joinRequestGroup, approveJoinRequest } from '../store/groupSlice';
+import { Users, Plus, UserPlus, Check, X, LogOut, Clock } from 'lucide-react';
 
 export default function Groups() {
   const dispatch = useDispatch();
-  const currentUser = useSelector((state) => state.hids.user);
-  const groupsList = useSelector((state) => state.hids.groupsList);
-  const usersList = useSelector((state) => state.hids.usersList);
+  
+  // Selectors mapped to separate user and group slices
+  const currentUser = useSelector((state) => state.user.user);
+  const groupsList = useSelector((state) => state.group.groupsList);
+  const usersList = useSelector((state) => state.user.usersList);
   
   const [newGroupName, setNewGroupName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -28,7 +30,7 @@ export default function Groups() {
       setErrorMsg('Group name is required.');
       return;
     }
-    dispatch(createGroup({ name: newGroupName.trim() }));
+    dispatch(createGroup({ name: newGroupName.trim(), creatorId: currentUser.id }));
     setNewGroupName('');
   };
 
@@ -100,7 +102,7 @@ export default function Groups() {
                       </span>
                     </div>
                     <button
-                      onClick={() => dispatch(exitGroup(g.id))}
+                      onClick={() => dispatch(exitGroup({ groupId: g.id, userId: currentUser.id }))}
                       className="p-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 rounded-lg cursor-pointer transition-all hover:scale-105 shrink-0"
                       title="Leave Group"
                     >
@@ -207,7 +209,7 @@ export default function Groups() {
                             </span>
                           ) : (
                             <button
-                              onClick={() => dispatch(joinRequestGroup(g.id))}
+                              onClick={() => dispatch(joinRequestGroup({ groupId: g.id, userId: currentUser.id }))}
                               className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-500/25 text-indigo-400 rounded text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all hover:scale-[1.02]"
                             >
                               <UserPlus className="w-3 h-3" /> Request Connection

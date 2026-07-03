@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setSelectedPid, setSelectedProcessDetails } from '../store/hidsSlice';
+import { setSelectedPid, setSelectedProcessDetails } from '../store/telemetrySlice';
 import { X, ShieldAlert, Cpu, HardDrive, User, Network, FileDown, ShieldCheck, Ban, Activity } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 
 export default function ProcessDetailsDrawer({ onMitigate }) {
   const dispatch = useDispatch();
-  const selectedPid = useSelector((state) => state.hids.selectedPid);
-  const details = useSelector((state) => state.hids.selectedProcessDetails);
+  
+  // Selectors mapped to modular telemetry slice
+  const selectedPid = useSelector((state) => state.telemetry.selectedPid);
+  const details = useSelector((state) => state.telemetry.selectedProcessDetails);
 
   const [confirmAction, setConfirmAction] = useState(null); // 'kill' | 'quarantine' | 'ignore' | null
 
@@ -61,189 +63,164 @@ export default function ProcessDetailsDrawer({ onMitigate }) {
         </button>
       </div>
 
+      {/* DRAWER CONTENT */}
       {!isLoaded ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 font-mono text-sm gap-2">
+        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 font-mono text-xs gap-3">
           <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <span>Polling telemetry logs...</span>
+          <span>Ingesting Process Forensics...</span>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
-          {/* RISK CARD */}
-          <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-lg text-gray-100 truncate max-w-[240px]" title={details.process.name}>
-                {details.process.name}
-              </h3>
-              <span className="text-xs text-gray-400 font-mono">PID {details.process.pid}</span>
+          
+          {/* PROCESS CRITICAL INFO */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-base font-extrabold text-gray-200 truncate">{details.process.name}</h2>
+              <span className="text-[10px] text-gray-500 font-mono block mt-0.5 select-all">PID {details.process.pid} • {details.process.exe || '[Simulated Path]'}</span>
             </div>
             
-            <div className="text-right">
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold font-mono tracking-wider ${
-                details.process.classification === 'Malicious' 
-                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
-                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-              }`}>
-                {details.process.classification.toUpperCase()} ({details.process.risk_score}%)
+            <div className="shrink-0 flex flex-col items-end">
+              <span className={`text-xl font-black font-mono ${details.process.risk_score >= 70 ? 'text-rose-400' : details.process.risk_score >= 40 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {details.process.risk_score.toFixed(0)}%
               </span>
+              <span className="text-[8px] text-gray-500 font-bold uppercase tracking-wider font-mono">Threat Risk</span>
             </div>
           </div>
 
-          {/* RISK TIMELINE CHART */}
-          <div className="bg-slate-950/20 border border-white/5 rounded-xl p-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 font-mono">Risk Anomaly Timeline</h4>
-            <div className="h-32">
+          {/* RISK SPARKLINE */}
+          <div className="bg-slate-950/40 border border-white/5 rounded-xl p-4 flex flex-col gap-2">
+            <span className="text-[9px] font-bold uppercase text-gray-500 tracking-wider font-mono">Incident Score Vectors</span>
+            <div className="h-16 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={riskHistoryData} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
-                  <XAxis dataKey="step" stroke="#4b5563" fontSize={10} tickLine={false} />
-                  <YAxis domain={[0, 100]} stroke="#4b5563" fontSize={10} tickLine={false} />
+                <AreaChart data={riskHistoryData}>
+                  <defs>
+                    <linearGradient id="riskGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={details.process.risk_score >= 70 ? '#f43f5e' : '#6366f1'} stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor={details.process.risk_score >= 70 ? '#f43f5e' : '#6366f1'} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.08)', borderRadius: '8px' }}
-                    labelClassName="font-mono text-xs text-gray-400"
+                    contentStyle={{ background: '#020617', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '9px' }}
+                    labelStyle={{ color: '#64748b' }}
                   />
-                  <Area type="monotone" dataKey="risk" stroke="#6366f1" fill="rgba(99, 102, 241, 0.15)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="risk" stroke={details.process.risk_score >= 70 ? '#f43f5e' : '#6366f1'} strokeWidth={2} fillOpacity={1} fill="url(#riskGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* PROCESS PROPERTIES */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-950/20 border border-white/5 rounded-lg p-3">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block font-mono">CPU Usage</span>
-              <span className="text-sm font-semibold text-gray-300 flex items-center gap-1.5 mt-1">
-                <Cpu className="w-4 h-4 text-cyan-400" /> {details.process.cpu_percent}%
-              </span>
+          {/* SYSTEM PERFORMANCE METRICS */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 bg-slate-950/20 border border-white/5 rounded-xl flex items-center gap-3">
+              <Cpu className="w-5 h-5 text-indigo-400 shrink-0" />
+              <div>
+                <span className="text-[9px] text-gray-500 font-bold uppercase block font-mono">Processor</span>
+                <span className="text-xs font-bold font-mono text-gray-300">{details.process.cpu_percent}%</span>
+              </div>
             </div>
-            
-            <div className="bg-slate-950/20 border border-white/5 rounded-lg p-3">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block font-mono">Memory Allocation</span>
-              <span className="text-sm font-semibold text-gray-300 flex items-center gap-1.5 mt-1">
-                <HardDrive className="w-4 h-4 text-purple-400" /> {details.process.memory_percent.toFixed(1)}%
-              </span>
-            </div>
-
-            <div className="bg-slate-950/20 border border-white/5 rounded-lg p-3 col-span-2">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block font-mono">Parent Context</span>
-              <span className="text-sm font-semibold text-gray-300 flex items-center gap-1.5 mt-1 truncate">
-                <Activity className="w-4 h-4 text-indigo-400" /> {details.process.parent_name} (PPID {details.process.parent_pid})
-              </span>
-            </div>
-
-            <div className="bg-slate-950/20 border border-white/5 rounded-lg p-3 col-span-2">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block font-mono">Active Executable</span>
-              <span className="text-xs font-mono text-gray-400 mt-1 block truncate" title={details.process.exe}>
-                {details.process.exe}
-              </span>
-            </div>
-
-            <div className="bg-slate-950/20 border border-white/5 rounded-lg p-3">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block font-mono">User Environment</span>
-              <span className="text-sm font-semibold text-gray-300 flex items-center gap-1.5 mt-1">
-                <User className="w-4 h-4 text-emerald-400" /> {details.process.username}
-              </span>
-            </div>
-
-            <div className="bg-slate-950/20 border border-white/5 rounded-lg p-3">
-              <span className="text-[10px] uppercase font-bold text-gray-500 block font-mono">Execution Status</span>
-              <span className="text-sm font-semibold text-gray-300 flex items-center gap-1.5 mt-1">
-                <span className={`w-2 h-2 rounded-full ${
-                  details.process.status === 'Running' ? 'bg-emerald-500' : 'bg-rose-500'
-                }`} />
-                {details.process.status}
-              </span>
+            <div className="p-3 bg-slate-950/20 border border-white/5 rounded-xl flex items-center gap-3">
+              <HardDrive className="w-5 h-5 text-cyan-400 shrink-0" />
+              <div>
+                <span className="text-[9px] text-gray-500 font-bold uppercase block font-mono">Memory</span>
+                <span className="text-xs font-bold font-mono text-gray-300">{details.process.memory_percent.toFixed(1)}%</span>
+              </div>
             </div>
           </div>
 
-          {/* ACTIVE REMEDIATION ACTIONS */}
-          <div className="bg-slate-950/20 border border-white/5 rounded-xl p-4 flex flex-col gap-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 font-mono">Security Remediation</h4>
+          {/* DETAILS DIRECTORY */}
+          <div className="flex flex-col gap-2 bg-slate-950/20 border border-white/5 rounded-xl p-4 font-mono text-xs">
+            <div className="flex justify-between border-b border-white/5 pb-2">
+              <span className="text-gray-500 flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> User Owner</span>
+              <span className="text-gray-300 font-semibold">{details.process.username || 'SYSTEM'}</span>
+            </div>
+            <div className="flex justify-between border-b border-white/5 py-2">
+              <span className="text-gray-500 flex items-center gap-1.5"><Network className="w-3.5 h-3.5" /> Sockets Opened</span>
+              <span className="text-gray-300 font-semibold">{details.network_connections?.length || 0} Open</span>
+            </div>
+            <div className="flex justify-between pt-2">
+              <span className="text-gray-500 flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" /> IO Reads / Writes</span>
+              <span className="text-gray-300 font-semibold">{details.process.read_count || 0} / {details.process.write_count || 0}</span>
+            </div>
+          </div>
+
+          {/* RULES EXPLANATION */}
+          {details.explanations && details.explanations.length > 0 && (
+            <div className="flex flex-col gap-2.5">
+              <span className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider font-mono">Classifier Heuristic Hits</span>
+              <div className="flex flex-col gap-2">
+                {details.explanations.map((exp, idx) => (
+                  <div key={idx} className="p-3 bg-rose-500/5 border border-rose-500/10 rounded-lg text-xs leading-relaxed text-rose-300 font-mono">
+                    ⚠️ {exp}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* MITIGATION CONTAINMENT SECTION */}
+          <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
+            <span className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider font-mono">Containment Remediation</span>
             
-            {confirmAction ? (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/25 rounded-lg">
-                <p className="text-xs text-rose-200 mb-2">Are you sure you want to run <strong>{confirmAction.toUpperCase()}</strong> on PID {details.process.pid}?</p>
+            {details.process.status && details.process.status !== 'Normal' ? (
+              <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-lg text-xs font-mono text-emerald-400 flex items-center gap-2">
+                <ShieldCheck className="w-4.5 h-4.5" />
+                <span>Process containerized: Status changed to <strong>{details.process.status}</strong>.</span>
+              </div>
+            ) : confirmAction ? (
+              <div className="p-4 bg-slate-950 border border-white/5 rounded-xl flex flex-col gap-4">
+                <p className="text-xs text-gray-300 font-mono leading-relaxed">
+                  Are you sure you want to trigger <strong>{confirmAction.toUpperCase()}</strong> on PID {details.process.pid}? This command broadcasts via WebSockets directly to the target agent kernel daemon.
+                </p>
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={() => {
-                      onMitigate(details.process.pid, confirmAction);
-                      setConfirmAction(null);
+                      onMitigate(details.process.pid, confirmAction === 'kill' ? 'terminate' : confirmAction === 'quarantine' ? 'quarantine' : 'dismiss');
+                      handleClose();
                     }}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-xs font-bold uppercase rounded cursor-pointer transition-all"
+                    className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider font-mono cursor-pointer transition-all"
                   >
-                    Confirm
+                    Confirm Action
                   </button>
-                  <button 
+                  <button
                     onClick={() => setConfirmAction(null)}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold uppercase rounded cursor-pointer transition-all"
+                    className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-xs font-bold uppercase tracking-wider font-mono cursor-pointer transition-all"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
-                  disabled={details.process.status === 'Terminated'}
                   onClick={() => setConfirmAction('kill')}
-                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 disabled:opacity-30 disabled:pointer-events-none text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                  className="py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/45 text-rose-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer font-mono transition-all"
                 >
-                  <Ban className="w-3.5 h-3.5" /> Terminate
+                  Terminate
                 </button>
-                
                 <button
-                  disabled={details.process.status === 'Quarantined' || details.process.status === 'Terminated'}
                   onClick={() => setConfirmAction('quarantine')}
-                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-30 disabled:pointer-events-none text-amber-400 border border-amber-500/20 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                  className="py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/45 text-amber-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer font-mono transition-all"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" /> Quarantine
+                  Quarantine
                 </button>
-
                 <button
                   onClick={() => setConfirmAction('ignore')}
-                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-slate-500/10 hover:bg-slate-500/20 border border-slate-500/20 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                  className="py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/45 text-indigo-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer font-mono transition-all"
                 >
-                  Ignore
+                  Dismiss
                 </button>
               </div>
             )}
           </div>
 
-          {/* TELEMETRY EVENTS HISTORY */}
-          <div className="flex-1 flex flex-col min-h-[220px]">
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 font-mono">Process Event Stream</h4>
-              <button 
-                onClick={handleExport}
-                className="flex items-center gap-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 font-mono"
-              >
-                <FileDown className="w-3.5 h-3.5" /> EXPORT FORENSICS
-              </button>
-            </div>
-            
-            <div className="flex-1 bg-slate-950/40 border border-white/5 rounded-xl p-3 overflow-y-auto max-h-[300px] flex flex-col gap-2">
-              {!details.events || details.events.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-gray-600 font-mono">
-                  No telemetry logged for this process
-                </div>
-              ) : (
-                details.events.map((e, idx) => (
-                  <div key={idx} className="text-xs border-b border-white/5 pb-2 last:border-b-0 font-mono">
-                    <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                      <span>{e.event_type.toUpperCase()} - {e.action.toUpperCase()}</span>
-                      <span>{new Date(e.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="text-gray-300 truncate" title={e.target_path}>
-                      <strong>Target:</strong> {e.target_path || 'None'}
-                    </p>
-                    {e.details && (
-                      <p className="text-gray-500 mt-0.5 truncate" title={e.details}>
-                        {e.details}
-                      </p>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {/* EXPORT ANOMALY COORDINATES */}
+          <button
+            onClick={handleExport}
+            className="w-full flex items-center justify-center gap-1.5 py-3 mt-2 bg-slate-950 border border-white/5 hover:bg-slate-950/60 text-gray-400 hover:text-indigo-400 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer font-mono transition-all duration-300"
+          >
+            <FileDown className="w-4 h-4" /> Download Anomaly Coordinates
+          </button>
+          
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Brain, Settings, Play, CheckCircle2, AlertCircle, Info, Lock } from 'lucide-react';
 
 export default function MLEngine() {
-  const currentUser = useSelector((state) => state.hids.user);
+  const currentUser = useSelector((state) => state.user.user);
   const hasPermission = currentUser && (currentUser.role === 'admin' || currentUser.role === 'type-2');
 
   const [isTraining, setIsTraining] = useState(false);
@@ -22,14 +22,14 @@ export default function MLEngine() {
     { name: 'num_connections', label: 'Network Sockets Opened', value: 2.1, desc: 'Frequency of new outbound socket connections.' },
     { name: 'run_from_temp', label: 'Executed from Temp Path', value: 1.3, desc: 'Executable residing in volatile directory (Temp, AppData, Recycle Bin).' },
     { name: 'unique_ips', label: 'Outbound IP Diversity', value: 0.8, desc: 'Count of unique destination IP addresses contacted.' },
-    { name: 'num_child_processes', label: 'Spawned Child Processes', value: 0.4, desc: 'Secondary subprocesses executed rapidly.' },
   ];
 
   const handleRetrain = async () => {
     setIsTraining(true);
     setTrainResult(null);
+
     try {
-      const res = await fetch('/api/train', {
+      const res = await fetch('/api/retrain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

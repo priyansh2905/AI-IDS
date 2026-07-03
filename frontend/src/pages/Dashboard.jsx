@@ -1,31 +1,32 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setSelectedPid, setSearchQuery, setFilterSeverity } from '../store/hidsSlice';
-import { Search, RefreshCw, Eye, Server, AlertTriangle, ShieldCheck, TrendingUp, Cpu, HardDrive } from 'lucide-react';
+import { exitGroup } from '../store/groupSlice';
+import { logoutUser } from '../store/userSlice';
+import { 
+  Shield, Home, User, Users, AlertTriangle, LogOut, Key, Check, Activity, Clock, Ban, ShieldAlert 
+} from 'lucide-react';
 
 export default function Dashboard() {
   const dispatch = useDispatch();
-  const processes = useSelector((state) => state.hids.processes);
-  const alerts = useSelector((state) => state.hids.alerts);
-  const events = useSelector((state) => state.hids.events);
-  const selectedPid = useSelector((state) => state.hids.selectedPid);
-  const searchQuery = useSelector((state) => state.hids.searchQuery);
-  const filterSeverity = useSelector((state) => state.hids.filterSeverity);
+  
+  // Tab/view navigation state
+  const [activeView, setActiveView] = useState('home'); // home | profile
+  const [activeTab, setActiveTab] = useState('groups'); // groups | alerts
 
-  const currentUser = useSelector((state) => state.hids.user);
-  const groupsList = useSelector((state) => state.hids.groupsList);
-  const usersList = useSelector((state) => state.hids.usersList);
+  // Modular store selectors
+  const currentUser = useSelector((state) => state.user.user);
+  const groupsList = useSelector((state) => state.group.groupsList);
+  const usersList = useSelector((state) => state.user.usersList);
+  const alerts = useSelector((state) => state.telemetry.alerts);
 
-  const eventEndRef = useRef(null);
-
-  // Group-based sensor filtering
+  // Group-based sensor filters
   const allowedSensorIds = useMemo(() => {
-    if (!currentUser || currentUser.role === 'admin') return null;
+    if (!currentUser) return [];
     
     // Find all group IDs the current user is a member of
     const myGroupIds = groupsList.filter(g => g.members.includes(currentUser.id)).map(g => g.id);
     
-    // Find all user IDs in those groups
+    // Collect all member user IDs from these groups
     const memberIds = new Set();
     groupsList.forEach(g => {
       if (myGroupIds.includes(g.id)) {
@@ -33,7 +34,7 @@ export default function Dashboard() {
       }
     });
     
-    // Add self to visibility set if type-2
+    // Include self if Type-2 host
     if (currentUser.role === 'type-2') {
       memberIds.add(currentUser.id);
     }
@@ -47,257 +48,251 @@ export default function Dashboard() {
     return Array.from(sensorIds);
   }, [currentUser, groupsList, usersList]);
 
-  // Filter visible items
-  const visibleProcesses = useMemo(() => {
-    return processes.filter(p => !allowedSensorIds || allowedSensorIds.includes(p.sensor_id || 'sensor-windows-testing'));
-  }, [processes, allowedSensorIds]);
-
+  // Scoped alerts list
   const visibleAlerts = useMemo(() => {
-    return alerts.filter(a => !allowedSensorIds || allowedSensorIds.includes(a.sensor_id || 'sensor-windows-testing'));
+    return alerts.filter(a => allowedSensorIds.includes(a.sensor_id || 'sensor-windows-testing'));
   }, [alerts, allowedSensorIds]);
 
-  const visibleEvents = useMemo(() => {
-    return events.filter(e => !allowedSensorIds || allowedSensorIds.includes(e.sensor_id || 'sensor-windows-testing'));
-  }, [events, allowedSensorIds]);
+  // Scoped groups list
+  const myGroups = useMemo(() => {
+    if (!currentUser) return [];
+    return groupsList.filter(g => g.members.includes(currentUser.id));
+  }, [groupsList, currentUser]);
 
-  // Auto-scroll event logs
-  useEffect(() => {
-    if (eventEndRef.current) {
-      eventEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [visibleEvents]);
+  const handleLeaveGroup = (groupId) => {
+    dispatch(exitGroup({ groupId, userId: currentUser.id }));
+  };
 
-  // Processes filtering
-  const filteredProcesses = useMemo(() => {
-    return visibleProcesses.filter(p => {
-      const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.pid.toString().includes(searchQuery);
-      
-      let matchSeverity = true;
-      if (filterSeverity === 'HIGH') matchSeverity = p.risk_score >= 70;
-      else if (filterSeverity === 'MEDIUM') matchSeverity = p.risk_score >= 40 && p.risk_score < 70;
-      else if (filterSeverity === 'LOW') matchSeverity = p.risk_score >= 15 && p.risk_score < 40;
-      else if (filterSeverity === 'SAFE') matchSeverity = p.risk_score < 15;
-      
-      return matchSearch && matchSeverity;
-    });
-  }, [visibleProcesses, searchQuery, filterSeverity]);
+  const handleLogout = () => {
+    dispatch(logoutUser());
+  };
 
-  // Statistics calculation
-  const stats = useMemo(() => {
-    const total = visibleProcesses.length;
-    const activeThreats = visibleAlerts.filter(a => a.status === 'Active').length;
-    const maxRisk = visibleProcesses.length > 0 ? Math.max(...visibleProcesses.map(p => p.risk_score)) : 0;
-    
-    let systemState = 'SECURE';
-    if (maxRisk >= 70) systemState = 'COMPROMISED';
-    else if (maxRisk >= 40) systemState = 'WARNING';
-
-    return { total, activeThreats, maxRisk, systemState };
-  }, [visibleProcesses, visibleAlerts]);
-
+  // Helper to map user ID to username
+  const getUsername = (uid) => {
+    const u = usersList.find(x => x.id === uid);
+    return u ? u.username : 'Unknown User';
+  };
 
   return (
-    <div className="flex flex-col gap-6 flex-1 min-w-0">
-      {/* STATS BANNER GRID */}
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* State */}
-        <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 relative overflow-hidden flex flex-col justify-between h-28 shadow-md">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 font-mono">System Threat Level</span>
-          <div className={`text-2xl font-extrabold font-mono mt-1 ${
-            stats.systemState === 'SECURE' ? 'text-emerald-400' : stats.systemState === 'WARNING' ? 'text-amber-400' : 'text-rose-400'
-          }`}>
-            {stats.systemState}
+    <div className="flex-1 flex flex-col gap-6 min-h-0 min-w-0 w-full relative">
+      
+      {/* 1. HEADER WITH BAR NAVIGATION & PROJECT TITLE */}
+      <header className="flex justify-between items-center bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-xl px-6 py-4 shadow-lg shrink-0">
+        <div className="flex items-center gap-3">
+          <Shield className="w-6 h-6 text-indigo-400 animate-pulse" />
+          <div>
+            <h1 className="text-sm font-extrabold tracking-wider bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent uppercase font-mono">
+              Antigravity AI-HIDS
+            </h1>
+            <span className="text-[9px] text-gray-500 font-mono block">COLLABORATIVE SECURITY ENVIRONMENT</span>
           </div>
-          <div className={`w-1.5 h-full absolute top-0 left-0 ${
-            stats.systemState === 'SECURE' ? 'bg-emerald-500' : stats.systemState === 'WARNING' ? 'bg-amber-500' : 'bg-rose-500'
-          }`} />
         </div>
-
-        {/* Total processes */}
-        <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col justify-between h-28 shadow-md">
-          <div className="flex justify-between items-center text-gray-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Monitored Processes</span>
-            <Server className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-gray-100 font-mono mt-1">{stats.total}</div>
-        </div>
-
-        {/* Active Threats */}
-        <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col justify-between h-28 shadow-md">
-          <div className="flex justify-between items-center text-gray-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Active Threats</span>
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
-          </div>
-          <div className={`text-3xl font-extrabold font-mono mt-1 ${
-            stats.activeThreats > 0 ? 'text-rose-400 animate-pulse' : 'text-gray-100'
-          }`}>{stats.activeThreats}</div>
-        </div>
-
-        {/* Max Risk */}
-        <div className="bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col justify-between h-28 shadow-md">
-          <div className="flex justify-between items-center text-gray-400">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono">Peak Risk score</span>
-            <TrendingUp className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className={`text-3xl font-extrabold font-mono mt-1 ${
-            stats.maxRisk >= 70 ? 'text-rose-400' : stats.maxRisk >= 40 ? 'text-amber-400' : 'text-emerald-400'
-          }`}>{stats.maxRisk.toFixed(1)}%</div>
-        </div>
-      </section>
-
-      {/* DASHBOARD COLUMN LAYOUT */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
         
-        {/* LEFT COLUMN: ACTIVE PROCESS LIST (7/12 cols) */}
-        <section className="lg:col-span-7 bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-4 shadow-lg min-h-[500px]">
-          <div className="flex justify-between items-center gap-4">
-            <h2 className="text-base font-extrabold tracking-wider uppercase text-gray-200 font-mono">Active Host Processes</h2>
-            
-            {/* Search Input */}
-            <div className="relative w-60">
-              <input 
-                type="text"
-                placeholder="Filter by name or PID..."
-                value={searchQuery}
-                onChange={(e) => dispatch(setSearchQuery(e.target.value))}
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-white/5 bg-slate-950/40 text-xs font-medium text-gray-200 outline-none focus:border-indigo-500/50 transition-all font-mono"
-              />
-              <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-2.5" />
-            </div>
-          </div>
+        {/* Navigation toggles */}
+        <div className="flex bg-slate-950/40 border border-white/5 rounded-lg p-1">
+          <button
+            onClick={() => setActiveView('home')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer ${
+              activeView === 'home' 
+                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' 
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <Home className="w-3.5 h-3.5" /> Home
+          </button>
+          <button
+            onClick={() => setActiveView('profile')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase rounded-md tracking-wider transition-all cursor-pointer ${
+              activeView === 'profile' 
+                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' 
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" /> Profile
+          </button>
+        </div>
+      </header>
 
-          {/* Filtering buttons */}
-          <div className="flex gap-1.5">
-            {['ALL', 'HIGH', 'MEDIUM', 'LOW', 'SAFE'].map(sev => (
+      {/* 2. MAIN CONTENTS PANEL */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {activeView === 'home' ? (
+          /* HOME TAB LAYOUT */
+          <div className="flex-1 flex flex-col gap-6 min-h-0">
+            {/* View tab switcher */}
+            <div className="flex gap-4 border-b border-white/5 pb-2 shrink-0">
               <button
-                key={sev}
-                onClick={() => dispatch(setFilterSeverity(sev))}
-                className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer ${
-                  filterSeverity === sev 
-                    ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/35' 
-                    : 'bg-slate-950/20 text-gray-500 border-white/5 hover:text-gray-300 hover:bg-slate-950/40'
+                onClick={() => setActiveTab('groups')}
+                className={`pb-2 px-1 text-xs font-bold uppercase tracking-wider transition-all border-b-2 cursor-pointer font-mono ${
+                  activeTab === 'groups' 
+                    ? 'border-indigo-500 text-indigo-400' 
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
                 }`}
               >
-                {sev}
+                Groups Cell ({myGroups.length})
               </button>
-            ))}
-          </div>
+              <button
+                onClick={() => setActiveTab('alerts')}
+                className={`pb-2 px-1 text-xs font-bold uppercase tracking-wider transition-all border-b-2 cursor-pointer font-mono ${
+                  activeTab === 'alerts' 
+                    ? 'border-indigo-500 text-indigo-400' 
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                Received Alerts ({visibleAlerts.length})
+              </button>
+            </div>
 
-          {/* Table Container */}
-          <div className="overflow-y-auto flex-1 max-h-[500px] border border-white/5 rounded-lg bg-slate-950/10">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-white/5 bg-slate-950/30 text-gray-400 font-mono uppercase tracking-wider">
-                  <th className="p-3">PID</th>
-                  <th className="p-3">Process Name</th>
-                  <th className="p-3 text-center">CPU</th>
-                  <th className="p-3 text-center">MEM</th>
-                  <th className="p-3 w-36">Risk Index</th>
-                  <th className="p-3 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProcesses.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="p-8 text-center text-gray-600 font-mono">
-                      No active processes matched criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredProcesses.map(p => {
-                    const risk = p.risk_score ?? 0;
-                    const mem = p.memory_percent ?? 0;
-                    const isThreat = risk >= 50;
-                    const isWarning = risk >= 20 && risk < 50;
-                    
-                    return (
-                      <tr 
-                        key={p.pid} 
-                        onClick={() => dispatch(setSelectedPid(p.pid))}
-                        className={`border-b border-white/5 transition-all duration-200 cursor-pointer hover:bg-indigo-500/5 ${
-                          selectedPid === p.pid ? 'bg-indigo-500/10' : ''
-                        }`}
-                      >
-                        <td className="p-3 font-bold font-mono text-gray-300">{p.pid}</td>
-                        <td className="p-3">
-                          <div className="flex flex-col max-w-[180px]">
-                            <span className="font-semibold text-gray-200 truncate">{p.name}</span>
-                            <span className="text-[10px] text-gray-500 truncate font-mono" title={p.exe}>{p.exe || '[Simulated Executable]'}</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-center font-mono text-gray-300">{p.cpu_percent}%</td>
-                        <td className="p-3 text-center font-mono text-gray-300">{mem.toFixed(1)}%</td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full ${
-                                  isThreat ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
-                                }`} 
-                                style={{ width: `${risk}%` }}
-                              />
-                            </div>
-                            <span className={`font-bold font-mono text-[10px] ${
-                              isThreat ? 'text-rose-400' : isWarning ? 'text-amber-400' : 'text-emerald-400'
-                            }`}>{risk.toFixed(0)}%</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-center">
-                          <button className="p-1 rounded bg-white/5 text-gray-400 hover:text-indigo-400 transition-all hover:bg-white/10 cursor-pointer">
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* RIGHT COLUMN: LIVE TELEMETRY CONSOLE (5/12 cols) */}
-        <section className="lg:col-span-5 bg-slate-900/40 border border-white/5 rounded-xl p-5 flex flex-col gap-4 shadow-lg min-h-[500px]">
-          <div>
-            <h2 className="text-base font-extrabold tracking-wider uppercase text-gray-200 font-mono">Live Telemetry Sensor Log</h2>
-            <p className="text-[10px] text-gray-500 font-mono mt-0.5">Streaming direct kernel and process events...</p>
-          </div>
-
-          <div className="flex-1 bg-slate-950/80 border border-white/5 rounded-xl p-4 overflow-y-auto max-h-[520px] font-mono text-[11px] leading-relaxed text-gray-400 flex flex-col gap-3 shadow-inner">
-            {visibleEvents.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-gray-600">
-                Waiting for host sensor link...
-              </div>
-            ) : (
-              visibleEvents.map((e, idx) => {
-                let colorClass = 'text-cyan-400';
-                if (e.event_type === 'file') {
-                  colorClass = e.action === 'write' ? 'text-amber-400' : 'text-emerald-400';
-                } else if (e.event_type === 'process') {
-                  colorClass = 'text-purple-400';
-                }
-                
-                return (
-                  <div key={idx} className="border-b border-white/5 pb-2 last:border-b-0">
-                    <div className="flex justify-between text-[9px] text-gray-500 mb-1">
-                      <span>[{new Date(e.timestamp).toLocaleTimeString()}]</span>
-                      <span className={`font-bold ${colorClass}`}>{e.event_type.toUpperCase()} / {e.action.toUpperCase()}</span>
+            {/* TAB CONTENTS */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              
+              {/* GROUPS TAB PANEL */}
+              {activeTab === 'groups' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {myGroups.length === 0 ? (
+                    <div className="col-span-full h-40 flex flex-col items-center justify-center text-gray-600 font-mono text-xs gap-2 border border-dashed border-white/5 rounded-2xl">
+                      <Users className="w-8 h-8 text-white/5" />
+                      <span>You do not belong to any collaborative groups.</span>
                     </div>
-                    <p className="text-gray-300">
-                      <span className="text-indigo-400 font-bold">{e.process_name}</span> (PID {e.pid}) ➡️ <span className="text-gray-400">{e.target_path || 'No target'}</span>
-                    </p>
-                    {e.details && (
-                      <p className="text-[10px] text-gray-500 mt-0.5">{e.details}</p>
-                    )}
-                  </div>
-                );
-              })
-            )}
-            <div ref={eventEndRef} />
+                  ) : (
+                    myGroups.map(g => {
+                      const ownerName = getUsername(g.creator_id);
+                      return (
+                        <div key={g.id} className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col gap-4 shadow-lg justify-between h-56 font-mono">
+                          <div>
+                            <div className="flex items-center gap-2 text-indigo-400">
+                              <Users className="w-4 h-4" />
+                              <h3 className="font-extrabold text-xs text-gray-200 truncate uppercase">{g.name}</h3>
+                            </div>
+                            
+                            <p className="text-[10px] text-gray-500 mt-2">
+                              Leader: <strong className="text-gray-400">{ownerName}</strong>
+                            </p>
+                            
+                            {/* Member names list */}
+                            <div className="mt-3 flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                              {g.members.map(uid => (
+                                <span key={uid} className="px-2 py-0.5 bg-slate-950/40 border border-white/5 rounded text-[8px] text-gray-400 font-bold uppercase tracking-wider">
+                                  {getUsername(uid)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleLeaveGroup(g.id)}
+                            className="w-full flex items-center justify-center gap-1 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-all shrink-0"
+                          >
+                            Leave Collaborative Cell
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* ALERTS TAB PANEL */}
+              {activeTab === 'alerts' && (
+                <div className="flex flex-col gap-4">
+                  {visibleAlerts.length === 0 ? (
+                    <div className="h-40 flex flex-col items-center justify-center text-gray-600 font-mono text-xs gap-2 border border-dashed border-white/5 rounded-2xl">
+                      <Shield className="w-8 h-8 text-emerald-500/10" />
+                      <span>No received alerts on joined group channels.</span>
+                    </div>
+                  ) : (
+                    visibleAlerts.map(a => {
+                      const isCritical = a.risk_score >= 70;
+                      return (
+                        <div key={a.pid} className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-lg font-mono">
+                          <div className="flex gap-4 items-start min-w-0">
+                            <div className={`p-2.5 rounded-xl border shrink-0 ${isCritical ? 'bg-rose-500/10 border-rose-500/25 text-rose-400' : 'bg-amber-500/10 border-amber-500/25 text-amber-400'}`}>
+                              <AlertTriangle className="w-5 h-5 animate-pulse" />
+                            </div>
+                            <div className="min-w-0 flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-extrabold text-xs text-gray-200 select-all">PID {a.pid} • {a.name}</h3>
+                                <span className={`text-[8px] px-1.5 py-0.5 rounded font-extrabold tracking-wider border ${isCritical ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
+                                  {a.risk_score.toFixed(0)}% RISK
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-gray-400 truncate">{a.exe || '[Simulated Executable]'}</span>
+                              {a.explanations && a.explanations.length > 0 && (
+                                <p className="text-[9px] text-rose-400/80 leading-normal mt-1 border-l-2 border-rose-500/35 pl-2">
+                                  Indicator: {a.explanations[0]}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 w-full md:w-auto shrink-0 border-t md:border-t-0 border-white/5 pt-3 md:pt-0">
+                            <span className="text-[9px] text-gray-500 flex items-center gap-1 select-none">
+                              <Clock className="w-3.5 h-3.5" /> {new Date(a.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+            </div>
           </div>
-        </section>
+        ) : (
+          /* PROFILE SUBPAGE VIEW */
+          <div className="flex-1 flex flex-col items-center justify-center py-6 animate-fadeIn font-mono">
+            <div className="w-full max-w-md bg-slate-900/40 border border-white/5 rounded-2xl p-6 shadow-2xl flex flex-col gap-5 relative overflow-hidden">
+              
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                <div className="p-2.5 rounded-xl bg-indigo-500/15 border border-indigo-500/25 text-indigo-400">
+                  <User className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <h2 className="font-extrabold text-sm text-gray-200">Account Profile Details</h2>
+                  <span className="text-[8px] text-indigo-400 uppercase tracking-widest font-bold">Workspace Autopsy Keys</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2.5 text-xs">
+                <div className="flex justify-between border-b border-white/5 pb-2">
+                  <span className="text-gray-500">Username ID</span>
+                  <span className="text-gray-200 font-bold">{currentUser.username}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 py-2">
+                  <span className="text-gray-500">Privilege Clearance</span>
+                  <span className="px-2 py-0.5 rounded border border-indigo-500/20 bg-indigo-500/10 text-indigo-400 text-[9px] font-bold uppercase tracking-wider">
+                    {currentUser.role}
+                  </span>
+                </div>
+                {currentUser.sensor_id && (
+                  <div className="flex justify-between border-b border-white/5 py-2">
+                    <span className="text-gray-500 text-cyan-400">Sensor ID Key</span>
+                    <span className="text-cyan-400 font-bold select-all">{currentUser.sensor_id}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-2">
+                  <span className="text-gray-500">Joined Group Cells</span>
+                  <span className="text-gray-200 font-bold">{myGroups.length} Connected</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-1.5 py-3 mt-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 rounded-lg text-xs font-bold uppercase cursor-pointer transition-all"
+              >
+                <LogOut className="w-4 h-4" /> Dissolve Session
+              </button>
+
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* 3. FOOTER (Leaving blank for now as requested) */}
+      <footer className="py-4 border-t border-white/5 text-center text-[10px] text-gray-600 font-mono mt-auto shrink-0 select-none">
+        {/* FOOTER METRICS BLANK */}
+      </footer>
+
     </div>
   );
 }

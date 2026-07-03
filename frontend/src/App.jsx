@@ -7,7 +7,7 @@ import {
   setEvents, addEvent, 
   updateMitigation, setWsConnected,
   setSelectedProcessDetails
-} from './store/hidsSlice';
+} from './store/telemetrySlice';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -25,9 +25,11 @@ import AdminConsole from './pages/AdminConsole';
 
 export default function App() {
   const dispatch = useDispatch();
-  const token = useSelector((state) => state.hids.token);
-  const currentUser = useSelector((state) => state.hids.user);
-  const selectedPid = useSelector((state) => state.hids.selectedPid);
+  
+  // Selectors mapped to modular slices
+  const token = useSelector((state) => state.user.token);
+  const currentUser = useSelector((state) => state.user.user);
+  const selectedPid = useSelector((state) => state.telemetry.selectedPid);
 
   // Fetch initial processes, alerts, events
   const fetchData = async () => {
@@ -138,7 +140,6 @@ export default function App() {
         body: JSON.stringify({ pid, action })
       });
       if (res.ok) {
-        const resData = await res.json();
         if (selectedPid === pid) {
           fetchSelectedProcessDetails(pid);
         }

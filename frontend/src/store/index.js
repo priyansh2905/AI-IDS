@@ -1,8 +1,12 @@
 import { configureStore } from '@reduxjs/toolkit';
-import hidsReducer from './hidsSlice';
+import userReducer from './userSlice';
+import groupReducer from './groupSlice';
+import telemetryReducer from './telemetrySlice';
 
 export const store = configureStore({
   reducer: {
-    hids: hidsReducer,
+    user: userReducer,
+    group: groupReducer,
+    telemetry: telemetryReducer,
   },
 });

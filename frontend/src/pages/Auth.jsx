@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { loginUser, registerUser } from '../store/hidsSlice';
+import { loginUser, registerUser } from '../store/userSlice';
 import { Shield, Key, User, Lock, ArrowRight, Activity, Copy, Check } from 'lucide-react';
 
 export default function Auth() {

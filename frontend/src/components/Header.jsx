@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Shield, RefreshCw } from 'lucide-react';
 
 export default function Header({ onSync }) {
-  const wsConnected = useSelector((state) => state.hids.wsConnected);
+  const wsConnected = useSelector((state) => state.telemetry.wsConnected);
 
   return (
     <header className="flex justify-between items-center bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-xl px-6 py-4 shadow-lg">
