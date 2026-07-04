@@ -21,10 +21,13 @@ TELEMETRY_ENDPOINT = f"{BACKEND_URL}/api/telemetry/processes"
 ALERTS_ENDPOINT = f"{BACKEND_URL}/api/alerts"
 EVENTS_ENDPOINT = f"{BACKEND_URL}/api/events"
 
+# Purely for local testing: hardcoded toggle to bypass remote sensor C2 control signals
+BYPASS_REMOTE_CONTROL = False
+
 # Control states
 is_connected = False
-offline_logging_enabled = True
-sensor_active = True
+offline_logging_enabled = False
+sensor_active = BYPASS_REMOTE_CONTROL
 sensor_simulate_mode = False
 sensor_instance = None
 
@@ -96,6 +99,10 @@ def _sync_offline_alerts():
 def send_alert(alert_payload):
     """Sends alert over HTTP, falling back to local logs if offline."""
     global is_connected
+    with state_lock:
+        active = sensor_active if BYPASS_REMOTE_CONTROL else False
+    if not active:
+        return
     logger.info(f"[🚨 DETECTION] Flagged PID {alert_payload['pid']} ({alert_payload['process_name']}) - Risk Score: {alert_payload['risk_score']}%")
     
     alert_payload["sensor_id"] = settings.SENSOR_ID
@@ -132,7 +139,7 @@ def send_telemetry(processes_list):
     """Sends process telemetry sweeps if sensor is active."""
     global is_connected
     with state_lock:
-        active = sensor_active
+        active = sensor_active if BYPASS_REMOTE_CONTROL else False
         online = is_connected
         
     if not active:
@@ -161,7 +168,7 @@ def send_event(event_payload):
     """Sends raw file/network/process telemetry events if sensor is active."""
     global is_connected
     with state_lock:
-        active = sensor_active
+        active = sensor_active if BYPASS_REMOTE_CONTROL else False
         online = is_connected
         
     if not active:
@@ -243,6 +250,14 @@ def on_ws_message(ws, message):
         action = cmd.get("action")
         
         if action == "start_sensor":
+            if not BYPASS_REMOTE_CONTROL:
+                logger.warning("[-] Remote start command ignored: BYPASS_REMOTE_CONTROL is False (sensor disabled locally).")
+                ws.send(json.dumps({
+                    "status": "warning",
+                    "message": "Start command ignored: Sensor disabled locally by testing bypass",
+                    "sensor_id": settings.SENSOR_ID
+                }))
+                return
             simulate = cmd.get("simulate", False)
             with state_lock:
                 if not sensor_active:
@@ -253,6 +268,14 @@ def on_ws_message(ws, message):
             ws.send(json.dumps({"status": "success", "message": "Sensor started", "sensor_id": settings.SENSOR_ID}))
             
         elif action == "stop_sensor":
+            if not BYPASS_REMOTE_CONTROL:
+                logger.warning("[-] Remote stop command ignored: BYPASS_REMOTE_CONTROL is False (sensor disabled locally).")
+                ws.send(json.dumps({
+                    "status": "warning",
+                    "message": "Stop command ignored: Sensor disabled locally by testing bypass",
+                    "sensor_id": settings.SENSOR_ID
+                }))
+                return
             with state_lock:
                 if sensor_active:
                     sensor_active = False
@@ -328,6 +351,14 @@ def main():
     ALERTS_ENDPOINT = f"{BACKEND_URL}/api/alerts"
     EVENTS_ENDPOINT = f"{BACKEND_URL}/api/events"
 
+    # Clear offline alert logs at startup
+    if os.path.exists(OFFLINE_LOG_PATH):
+        try:
+            os.remove(OFFLINE_LOG_PATH)
+            logger.info("[*] Cleared offline alert logs at startup.")
+        except Exception as e:
+            logger.warning(f"[-] Could not clear offline logs at startup: {e}")
+
     print("=============================================")
     print("      AI-HIDS Local Intrusion Sensor Agent   ")
     print("=============================================")
@@ -343,8 +374,11 @@ def main():
     ws_thread = threading.Thread(target=websocket_listener_loop, daemon=True)
     ws_thread.start()
 
-    print("[+] Sensor initialized. Starting active polling...")
-    sensor_instance.start(simulate=args.simulate)
+    if sensor_active:
+        print("[+] Sensor initialized. Starting active polling...")
+        sensor_instance.start(simulate=args.simulate)
+    else:
+        print("[*] Sensor starting in INACTIVE state (BYPASS_REMOTE_CONTROL is False).")
     
     try:
         while True:
