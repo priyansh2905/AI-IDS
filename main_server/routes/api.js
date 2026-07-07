@@ -14,8 +14,31 @@ const { getTelemetry, getLatestTelemetry } = require("../controllers/telemetryCo
 const { getAlerts, getAlertStats, acknowledgeAlert } = require("../controllers/alertController");
 const { getEvents } = require("../controllers/eventController");
 const { mitigateProcess, retrainModel } = require("../controllers/mitigateController");
+const { signup, login, getUsers, deleteUser } = require("../controllers/userController");
+const {
+  getGroups,
+  createGroup,
+  deleteGroup,
+  exitGroup,
+  joinRequest,
+  approveJoinRequest
+} = require("../controllers/groupController");
 
 const router = Router();
+
+// ── Auth & Users ─────────────────────────────────────────────────────────────
+router.post("/auth/signup", signup);
+router.post("/auth/login", login);
+router.get("/users", getUsers);
+router.delete("/users/:id", deleteUser);
+
+// ── Collaborative Groups ──────────────────────────────────────────────────────
+router.get("/groups", getGroups);
+router.post("/groups", createGroup);
+router.delete("/groups/:id", deleteGroup);
+router.post("/groups/:id/exit", exitGroup);
+router.post("/groups/:id/request", joinRequest);
+router.post("/groups/:id/approve", approveJoinRequest);
 
 // ── Health Check ─────────────────────────────────────────────────────────────
 router.get("/health", (_req, res) => {

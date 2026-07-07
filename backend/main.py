@@ -167,20 +167,8 @@ async def websocket_control(websocket: WebSocket):
         await websocket.close(code=4003)
         return
         
-    logger.info(f"[+] Agent telemetry websocket connected: {sensor_id}")
+    logger.info(f"[🔌 SENSOR CONNECTED] Control channel established for sensor ID: {sensor_id}")
     active_sensors[sensor_id] = websocket
-    
-    # Send visible connection acknowledgment back to the agent
-    try:
-        await websocket.send_json({
-            "type": "connection_ack",
-            "message": f"Connection acknowledged by main_backend (TESTING MOCK - Active ID: {sensor_id})",
-            "sensor_id": sensor_id,
-            "status": "connected"
-        })
-        logger.info(f"[+] Sent connection ack to sensor: {sensor_id}")
-    except Exception as e:
-        logger.error(f"[-] Failed to send connection ack to {sensor_id}: {e}")
     
     try:
         while True:

@@ -29,17 +29,21 @@ export default function MLEngine() {
     setTrainResult(null);
 
     try {
+      console.log("[API Call] POST /api/retrain - Triggering Random Forest model retraining pipeline...");
       const res = await fetch('/api/retrain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
+      console.log(`[API Response] POST /api/retrain - Status: ${res.status} ${res.statusText}`);
       const data = await res.json();
+      console.log("[API Payload Received] Retraining response:", data);
       if (res.ok && data.status === 'success') {
         setTrainResult({ success: true, message: data.message });
       } else {
         setTrainResult({ success: false, message: data.error || data.message || "Failed to retrain model." });
       }
     } catch (err) {
+      console.error("Retraining request failed:", err);
       setTrainResult({ success: false, message: "Network error: unable to reach Express API server." });
     } finally {
       setIsTraining(false);

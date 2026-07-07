@@ -41,6 +41,7 @@ const receiveAlert = async (req, res) => {
     if (payload.rule_triggers && !payload.rule_hits) {
       payload.rule_hits = payload.rule_triggers;
     }
+    console.warn(`\x1b[33m[🚨 ALERT INGESTED] Threat raised on Sensor: ${payload.sensor_id} | Process: ${payload.process_name} (PID: ${payload.pid}) | Risk Score: ${payload.risk_score}%\x1b[0m`);
     const doc = await Alert.create(payload);
     broadcast("alert", { ...payload, _id: doc._id });
     res.json({ status: "ok", id: doc._id });

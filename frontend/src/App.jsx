@@ -8,6 +8,8 @@ import {
   updateMitigation, setWsConnected,
   setSelectedProcessDetails
 } from './store/telemetrySlice';
+import { fetchUsers } from './store/userSlice';
+import { fetchGroups } from './store/groupSlice';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -35,25 +37,32 @@ export default function App() {
   const fetchData = async () => {
     if (!token) return;
     try {
-      // GET latest process snapshot — Express exposes /api/telemetry/latest
+      dispatch(fetchUsers());
+      dispatch(fetchGroups());
+      console.log("[API Call] GET /api/telemetry/latest - Fetching initial process snapshots...");
       const pRes = await fetch('/api/telemetry/latest');
+      console.log(`[API Response] GET /api/telemetry/latest - Status: ${pRes.status} ${pRes.statusText}`);
       if (pRes.ok) {
         const pData = await pRes.json();
-        // Response shape: { status, sensor_id, received_at, data: [...] }
+        console.log("[API Payload Received] Telemetry data:", pData);
         dispatch(setProcesses(Array.isArray(pData.data) ? pData.data : []));
       }
       
-      // GET alerts list — response shape: { status, total, count, data: [...] }
+      console.log("[API Call] GET /api/alerts?limit=100 - Fetching recent security alerts...");
       const aRes = await fetch('/api/alerts?limit=100');
+      console.log(`[API Response] GET /api/alerts - Status: ${aRes.status} ${aRes.statusText}`);
       if (aRes.ok) {
         const aData = await aRes.json();
+        console.log("[API Payload Received] Alerts data:", aData);
         dispatch(setAlerts(Array.isArray(aData.data) ? aData.data : []));
       }
 
-      // GET raw events — response shape: { status, count, data: [...] }
+      console.log("[API Call] GET /api/events?limit=80 - Fetching raw forensic events...");
       const eRes = await fetch('/api/events?limit=80');
+      console.log(`[API Response] GET /api/events - Status: ${eRes.status} ${eRes.statusText}`);
       if (eRes.ok) {
         const eData = await eRes.json();
+        console.log("[API Payload Received] Events data:", eData);
         const eventsArr = Array.isArray(eData.data) ? eData.data : [];
         dispatch(setEvents([...eventsArr].reverse())); // oldest first in console
       }
@@ -66,14 +75,17 @@ export default function App() {
   const fetchSelectedProcessDetails = async (pid) => {
     if (!token) return;
     try {
-      // Filter the latest telemetry sweep for the specific pid
+      console.log(`[API Call] GET /api/telemetry/latest - Polling forensics detail for PID: ${pid}`);
       const res = await fetch(`/api/telemetry/latest`);
       if (res.ok) {
         const data = await res.json();
         const proc = Array.isArray(data.data)
           ? data.data.find(p => p.pid === pid)
           : null;
-        if (proc) dispatch(setSelectedProcessDetails({ process: proc }));
+        if (proc) {
+          console.log(`[API Response] GET /api/telemetry/latest - PID: ${pid} matches found:`, proc);
+          dispatch(setSelectedProcessDetails({ process: proc }));
+        }
       }
     } catch (err) {
       console.error("Failed to fetch process details:", err);
@@ -152,12 +164,16 @@ export default function App() {
   // Mitigation API call handler
   const handleMitigate = async (pid, action) => {
     try {
+      console.log(`[API Call] POST /api/mitigate - Directing action: ${action} on PID: ${pid}`);
       const res = await fetch('/api/mitigate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pid, action })
       });
+      console.log(`[API Response] POST /api/mitigate - Status: ${res.status} ${res.statusText}`);
       if (res.ok) {
+        const payload = await res.json();
+        console.log("[API Payload Received] Mitigation acknowledgement:", payload);
         if (selectedPid === pid) {
           fetchSelectedProcessDetails(pid);
         }

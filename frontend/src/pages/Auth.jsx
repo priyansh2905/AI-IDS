@@ -16,7 +16,7 @@ export default function Auth() {
   const [generatedKey, setGeneratedKey] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -32,21 +32,21 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        dispatch(loginUser({ username, role, sensorId }));
+        await dispatch(loginUser({ username, password, role, sensorId })).unwrap();
       } else {
         if (role === 'type-2') {
           // Generate unique sensor key dynamically on signup
           const cleanUser = username.toLowerCase().replace(/[^a-z0-9]/g, '');
           const newKey = `sensor-${cleanUser}-${Math.floor(10000 + Math.random() * 90000)}`;
           
-          dispatch(registerUser({ username, role, sensorId: newKey }));
+          await dispatch(registerUser({ username, password, role, sensorId: newKey })).unwrap();
           setGeneratedKey(newKey);
         } else {
-          dispatch(registerUser({ username, role }));
+          await dispatch(registerUser({ username, password, role })).unwrap();
         }
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Authentication failed.');
+      setErrorMsg(err || 'Authentication failed.');
     }
   };
 

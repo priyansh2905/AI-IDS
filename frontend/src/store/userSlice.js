@@ -1,4 +1,78 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+
+export const fetchUsers = createAsyncThunk(
+  'user/fetchUsers',
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
+      return data.data; // Array of formatted users
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const loginUser = createAsyncThunk(
+  'user/loginUser',
+  async ({ username, password, role, sensorId }, { rejectWithValue }) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role, sensorId })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to login');
+      }
+      return data; // { token, user }
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const registerUser = createAsyncThunk(
+  'user/registerUser',
+  async ({ username, password, role, sensorId }, { rejectWithValue }) => {
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role, sensor_id: sensorId })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to register');
+      }
+      return data.user; // { id, username, role, sensor_id }
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const deleteUser = createAsyncThunk(
+  'user/deleteUser',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to delete user');
+      }
+      return userId;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
 
 const cachedUser = (() => {
   try {
@@ -10,73 +84,51 @@ const cachedUser = (() => {
 })();
 const cachedToken = localStorage.getItem('hids_token') || null;
 
-const initialUsersList = [
-  { id: 'usr-admin', username: 'admin', role: 'admin' },
-  { id: 'usr-type1', username: 'type1', role: 'type-1' },
-  { id: 'usr-type2', username: 'type2', role: 'type-2', sensor_id: 'sensor-windows-testing' }
-];
-
 const initialState = {
   user: cachedUser,
   token: cachedToken,
-  usersList: initialUsersList
+  usersList: [],
+  status: 'idle',
+  error: null
 };
 
 const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
-    loginUser: (state, action) => {
-      const { username, role, sensorId } = action.payload;
-      const found = state.usersList.find(u => u.username.toLowerCase() === username.toLowerCase() && u.role === role);
-      if (found) {
-        if (role === 'type-2' && found.sensor_id !== sensorId) {
-          throw new Error("Invalid Sensor ID Key.");
-        }
-        state.user = found;
-        state.token = `mock-jwt-token-head.${btoa(JSON.stringify(found))}.signature`;
-        localStorage.setItem('hids_user', JSON.stringify(found));
-        localStorage.setItem('hids_token', state.token);
-      } else {
-        throw new Error("Invalid username or selected access role.");
-      }
-    },
-    registerUser: (state, action) => {
-      const { username, role, sensorId } = action.payload;
-      const exists = state.usersList.some(u => u.username.toLowerCase() === username.toLowerCase());
-      if (exists) {
-        throw new Error("Username is already taken.");
-      }
-      
-      const newUser = {
-        id: 'usr-' + Date.now(),
-        username,
-        role,
-        ...(role === 'type-2' && { sensor_id: sensorId })
-      };
-      
-      state.usersList.push(newUser);
-      
-      // Auto login for non-host roles (type-1, admin)
-      if (role !== 'type-2') {
-        state.user = newUser;
-        state.token = `mock-jwt-token-head.${btoa(JSON.stringify(newUser))}.signature`;
-        localStorage.setItem('hids_user', JSON.stringify(newUser));
-        localStorage.setItem('hids_token', state.token);
-      }
-    },
     logoutUser: (state) => {
       state.user = null;
       state.token = null;
       localStorage.removeItem('hids_user');
       localStorage.removeItem('hids_token');
-    },
-    deleteUser: (state, action) => {
-      const userId = action.payload;
-      state.usersList = state.usersList.filter(u => u.id !== userId);
     }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.usersList = action.payload;
+      })
+      .addCase(loginUser.fulfilled, (state, action) => {
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        localStorage.setItem('hids_user', JSON.stringify(action.payload.user));
+        localStorage.setItem('hids_token', action.payload.token);
+      })
+      .addCase(registerUser.fulfilled, (state, action) => {
+        const newUser = action.payload;
+        state.usersList.push(newUser);
+        if (newUser.role !== 'type-2') {
+          state.user = newUser;
+          state.token = `mock-jwt-token-head.${btoa(JSON.stringify(newUser))}.signature`;
+          localStorage.setItem('hids_user', JSON.stringify(newUser));
+          localStorage.setItem('hids_token', state.token);
+        }
+      })
+      .addCase(deleteUser.fulfilled, (state, action) => {
+        state.usersList = state.usersList.filter(u => u.id !== action.payload);
+      });
   }
 });
 
-export const { loginUser, registerUser, logoutUser, deleteUser } = userSlice.actions;
+export const { logoutUser } = userSlice.actions;
 export default userSlice.reducer;
