@@ -3,6 +3,8 @@
  * Handles User database transactions (Registration, Login, Listing, Deletion).
  */
 
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Group = require("../models/Group");
 
@@ -23,24 +25,34 @@ const signup = async (req, res) => {
     }
 
     const user_key = `key-${username.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    // Hash password before saving to DB
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await User.create({
       username,
-      password,
+      password: hashedPassword,
       role,
       sensor_id: role === "type-2" ? sensor_id : null,
       user_key
     });
 
+    const userData = {
+      id: newUser._id,
+      username: newUser.username,
+      role: newUser.role,
+      sensor_id: newUser.sensor_id,
+      user_key: newUser.user_key
+    };
+
+    // Generate real JWT token
+    const secret = process.env.JWT_SECRET || "dev_fallback_secret_key_9999";
+    const token = jwt.sign(userData, secret, { expiresIn: "7d" });
+
     res.json({
       status: "ok",
-      user: {
-        id: newUser._id,
-        username: newUser.username,
-        role: newUser.role,
-        sensor_id: newUser.sensor_id,
-        user_key: newUser.user_key
-      }
+      token,
+      user: userData
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -67,7 +79,15 @@ const login = async (req, res) => {
       return res.status(400).json({ status: "error", message: "Invalid username or selected access role" });
     }
 
-    if (found.password !== password) {
+    // Secure comparison (with plaintext fallback for older legacy records)
+    let isMatch = false;
+    if (found.password.startsWith("$2a$") || found.password.startsWith("$2b$")) {
+      isMatch = await bcrypt.compare(password, found.password);
+    } else {
+      isMatch = found.password === password;
+    }
+
+    if (!isMatch) {
       return res.status(400).json({ status: "error", message: "Incorrect password" });
     }
 
@@ -75,7 +95,6 @@ const login = async (req, res) => {
       return res.status(400).json({ status: "error", message: "Invalid Sensor ID Key" });
     }
 
-    // Generate mock JWT token base64 encoded
     const userData = {
       id: found._id,
       username: found.username,
@@ -83,11 +102,14 @@ const login = async (req, res) => {
       sensor_id: found.sensor_id,
       user_key: found.user_key
     };
-    const mockToken = `mock-jwt-token-head.${Buffer.from(JSON.stringify(userData)).toString("base64")}.signature`;
+
+    // Generate real JWT token
+    const secret = process.env.JWT_SECRET || "dev_fallback_secret_key_9999";
+    const realToken = jwt.sign(userData, secret, { expiresIn: "7d" });
 
     res.json({
       status: "ok",
-      token: mockToken,
+      token: realToken,
       user: userData
     });
   } catch (err) {

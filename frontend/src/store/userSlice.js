@@ -49,7 +49,7 @@ export const registerUser = createAsyncThunk(
       if (!res.ok || data.status !== 'ok') {
         throw new Error(data.message || 'Failed to register');
       }
-      return data.user; // { id, username, role, sensor_id }
+      return data; // { token, user }
     } catch (err) {
       return rejectWithValue(err.message);
     }
@@ -115,14 +115,13 @@ const userSlice = createSlice({
         localStorage.setItem('hids_token', action.payload.token);
       })
       .addCase(registerUser.fulfilled, (state, action) => {
-        const newUser = action.payload;
-        state.usersList.push(newUser);
-        if (newUser.role !== 'type-2') {
-          state.user = newUser;
-          state.token = `mock-jwt-token-head.${btoa(JSON.stringify(newUser))}.signature`;
-          localStorage.setItem('hids_user', JSON.stringify(newUser));
-          localStorage.setItem('hids_token', state.token);
-        }
+        const { user, token } = action.payload;
+        state.usersList.push(user);
+        // Always auto-login the newly registered user with the real JWT token
+        state.user = user;
+        state.token = token;
+        localStorage.setItem('hids_user', JSON.stringify(user));
+        localStorage.setItem('hids_token', token);
       })
       .addCase(deleteUser.fulfilled, (state, action) => {
         state.usersList = state.usersList.filter(u => u.id !== action.payload);

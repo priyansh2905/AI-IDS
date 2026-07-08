@@ -29,11 +29,27 @@ const {
   searchPublicGroup
 } = require("../controllers/groupController");
 
+const authMiddleware = require("../middleware/authMiddleware");
+
 const router = Router();
 
-// ── Auth & Users ─────────────────────────────────────────────────────────────
+// ── Public Routes (Auth & Health) ─────────────────────────────────────────────
 router.post("/auth/signup", signup);
 router.post("/auth/login", login);
+router.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "AI-HIDS Express Main Server",
+    mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    ws_clients: clientCount(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ── Secure Routes Guard ──────────────────────────────────────────────────────
+router.use(authMiddleware);
+
+// ── Secure Users ─────────────────────────────────────────────────────────────
 router.get("/users", getUsers);
 router.delete("/users/:id", deleteUser);
 
@@ -49,17 +65,6 @@ router.post("/groups/:id/accept", acceptInvite);
 router.post("/groups/:id/decline", declineInvite);
 router.patch("/groups/:id/status", updateGroupStatus);
 router.get("/groups/search/:group_key", searchPublicGroup);
-
-// ── Health Check ─────────────────────────────────────────────────────────────
-router.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    service: "AI-HIDS Express Main Server",
-    mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-    ws_clients: clientCount(),
-    timestamp: new Date().toISOString(),
-  });
-});
 
 // ── Telemetry ─────────────────────────────────────────────────────────────────
 router.get("/telemetry", getTelemetry);

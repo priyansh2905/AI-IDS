@@ -5,6 +5,7 @@
  */
 
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const Group = require("../models/Group");
 
@@ -18,9 +19,18 @@ const seedDefaultUsers = async () => {
 
     for (const def of defaults) {
       const exists = await User.findOne({ username: def.username });
+      const hashedPassword = await bcrypt.hash(def.password, 10);
       if (!exists) {
-        await User.create(def);
+        await User.create({
+          ...def,
+          password: hashedPassword
+        });
         console.log(`[*] Seeded default developer credential: ${def.username}`);
+      } else if (!exists.password.startsWith("$2a$") && !exists.password.startsWith("$2b$")) {
+        // Auto-migrate plaintext to bcrypt hash
+        exists.password = hashedPassword;
+        await exists.save();
+        console.log(`[*] Migrated default developer credential to hashed password: ${def.username}`);
       }
     }
   } catch (e) {
