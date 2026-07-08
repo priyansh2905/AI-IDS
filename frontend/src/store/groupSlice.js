@@ -115,6 +115,102 @@ export const approveJoinRequest = createAsyncThunk(
   }
 );
 
+export const inviteUser = createAsyncThunk(
+  'group/inviteUser',
+  async ({ groupId, userKey }, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userKey })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to invite user');
+      }
+      return data.group;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const acceptInvite = createAsyncThunk(
+  'group/acceptInvite',
+  async ({ groupId, userId }, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to accept invitation');
+      }
+      return data.group;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const declineInvite = createAsyncThunk(
+  'group/declineInvite',
+  async ({ groupId, userId }, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/decline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to decline invitation');
+      }
+      return data.group;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const updateGroupStatus = createAsyncThunk(
+  'group/updateGroupStatus',
+  async ({ groupId, status }, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to update group status');
+      }
+      return data.group;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const searchPublicGroup = createAsyncThunk(
+  'group/searchPublicGroup',
+  async (groupKey, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/groups/search/${groupKey}`);
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to search public group');
+      }
+      return data.group;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 const initialState = {
   groupsList: []
 };
@@ -155,12 +251,50 @@ const groupSlice = createSlice({
           state.groupsList[index] = updated;
         }
       })
+      .addCase(inviteUser.fulfilled, (state, action) => {
+        const updated = action.payload;
+        const index = state.groupsList.findIndex(g => g.id === updated.id);
+        if (index !== -1) {
+          state.groupsList[index] = updated;
+        }
+      })
+      .addCase(acceptInvite.fulfilled, (state, action) => {
+        const updated = action.payload;
+        const index = state.groupsList.findIndex(g => g.id === updated.id);
+        if (index !== -1) {
+          state.groupsList[index] = updated;
+        }
+      })
+      .addCase(declineInvite.fulfilled, (state, action) => {
+        const updated = action.payload;
+        const index = state.groupsList.findIndex(g => g.id === updated.id);
+        if (index !== -1) {
+          state.groupsList[index] = updated;
+        }
+      })
+      .addCase(updateGroupStatus.fulfilled, (state, action) => {
+        const updated = action.payload;
+        const index = state.groupsList.findIndex(g => g.id === updated.id);
+        if (index !== -1) {
+          state.groupsList[index] = updated;
+        }
+      })
+      .addCase(searchPublicGroup.fulfilled, (state, action) => {
+        const searched = action.payload;
+        const index = state.groupsList.findIndex(g => g.id === searched.id);
+        if (index !== -1) {
+          state.groupsList[index] = searched;
+        } else {
+          state.groupsList.push(searched);
+        }
+      })
       .addCase(deleteUser.fulfilled, (state, action) => {
         const userId = action.payload;
         state.groupsList = state.groupsList.map(grp => ({
           ...grp,
           members: grp.members.filter(uid => uid !== userId),
-          pending_requests: grp.pending_requests.filter(uid => uid !== userId)
+          pending_requests: grp.pending_requests.filter(uid => uid !== userId),
+          pending_invitations: grp.pending_invitations ? grp.pending_invitations.filter(uid => uid !== userId) : []
         }));
       });
   }

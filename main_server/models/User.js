@@ -11,6 +11,7 @@ const UserSchema = new mongoose.Schema(
     password: { type: String, required: true }, // Plainttext password for simple mock environment testing
     role: { type: String, enum: ["admin", "type-1", "type-2"], required: true },
     sensor_id: { type: String, default: null }, // Sensor ID Key generated for Type-2 Host users
+    user_key: { type: String, required: true, unique: true, index: true },
   },
   { collection: "users" }
 );

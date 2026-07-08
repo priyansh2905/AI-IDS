@@ -21,7 +21,12 @@ const {
   deleteGroup,
   exitGroup,
   joinRequest,
-  approveJoinRequest
+  approveJoinRequest,
+  inviteUser,
+  acceptInvite,
+  declineInvite,
+  updateGroupStatus,
+  searchPublicGroup
 } = require("../controllers/groupController");
 
 const router = Router();
@@ -39,6 +44,11 @@ router.delete("/groups/:id", deleteGroup);
 router.post("/groups/:id/exit", exitGroup);
 router.post("/groups/:id/request", joinRequest);
 router.post("/groups/:id/approve", approveJoinRequest);
+router.post("/groups/:id/invite", inviteUser);
+router.post("/groups/:id/accept", acceptInvite);
+router.post("/groups/:id/decline", declineInvite);
+router.patch("/groups/:id/status", updateGroupStatus);
+router.get("/groups/search/:group_key", searchPublicGroup);
 
 // ── Health Check ─────────────────────────────────────────────────────────────
 router.get("/health", (_req, res) => {

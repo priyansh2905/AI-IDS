@@ -23,6 +23,7 @@ import Alerts from './pages/Alerts';
 import MLEngine from './pages/MLEngine';
 import Mitigations from './pages/Mitigations';
 import Groups from './pages/Groups';
+import GroupDetails from './pages/GroupDetails';
 import AdminConsole from './pages/AdminConsole';
 
 export default function App() {
@@ -161,27 +162,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, [selectedPid, token]);
 
-  // Mitigation API call handler
+  // Mitigation API call handler - disabled (detection-only mode)
   const handleMitigate = async (pid, action) => {
-    try {
-      console.log(`[API Call] POST /api/mitigate - Directing action: ${action} on PID: ${pid}`);
-      const res = await fetch('/api/mitigate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pid, action })
-      });
-      console.log(`[API Response] POST /api/mitigate - Status: ${res.status} ${res.statusText}`);
-      if (res.ok) {
-        const payload = await res.json();
-        console.log("[API Payload Received] Mitigation acknowledgement:", payload);
-        if (selectedPid === pid) {
-          fetchSelectedProcessDetails(pid);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to run mitigation command:", err);
-      alert("Mitigation action failed: connection error.");
-    }
+    alert("Mitigation actions are currently disabled (Detection-only mode enabled).");
   };
 
   // 1. ROUTE GUARD: Redirect to login if token is absent
@@ -204,6 +187,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/alerts" element={<Alerts onMitigate={handleMitigate} />} />
             <Route path="/groups" element={<Groups />} />
+            <Route path="/groups/:id" element={<GroupDetails onMitigate={handleMitigate} />} />
             <Route path="/ml-model" element={<MLEngine />} />
             <Route path="/mitigations" element={<Mitigations />} />
             

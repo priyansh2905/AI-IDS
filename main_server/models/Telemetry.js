@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const TelemetrySchema = new mongoose.Schema(
   {
     sensor_id: { type: String, required: true, index: true },
+    status: { type: String },
     processes: [
       {
         pid: Number,

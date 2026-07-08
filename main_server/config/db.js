@@ -5,15 +5,15 @@
  */
 
 const mongoose = require("mongoose");
-
 const User = require("../models/User");
+const Group = require("../models/Group");
 
 const seedDefaultUsers = async () => {
   try {
     const defaults = [
-      { username: "admin", password: "admin", role: "admin", sensor_id: null },
-      { username: "type1", password: "type1", role: "type-1", sensor_id: null },
-      { username: "type2", password: "type2", role: "type-2", sensor_id: "sensor-windows-testing" }
+      { username: "admin", password: "admin", role: "admin", sensor_id: null, user_key: "key-admin-1111" },
+      { username: "type1", password: "type1", role: "type-1", sensor_id: null, user_key: "key-type1-2222" },
+      { username: "type2", password: "type2", role: "type-2", sensor_id: "sensor-windows-testing", user_key: "key-type2-3333" }
     ];
 
     for (const def of defaults) {
@@ -25,6 +25,32 @@ const seedDefaultUsers = async () => {
     }
   } catch (e) {
     console.warn(`[!] Failed to seed default credentials: ${e.message}`);
+  }
+};
+
+const seedDefaultGroups = async () => {
+  try {
+    const adminUser = await User.findOne({ username: "admin" });
+    const type1User = await User.findOne({ username: "type1" });
+    const type2User = await User.findOne({ username: "type2" });
+
+    if (adminUser && type1User && type2User) {
+      const exists = await Group.findOne({ name: "Alpha Response Force" });
+      if (!exists) {
+        await Group.create({
+          name: "Alpha Response Force",
+          creator_id: adminUser._id,
+          members: [adminUser._id, type1User._id, type2User._id],
+          pending_requests: [],
+          pending_invitations: [],
+          group_key: "grp-alpha-1111",
+          status: "public"
+        });
+        console.log("[*] Seeded default group: Alpha Response Force");
+      }
+    }
+  } catch (e) {
+    console.warn(`[!] Failed to seed default group: ${e.message}`);
   }
 };
 
@@ -44,8 +70,10 @@ const connectDB = async () => {
   try {
     await mongoose.connect(fullUri, {
       serverSelectionTimeoutMS: 5000,
+      tlsAllowInvalidCertificates: true
     });
     await seedDefaultUsers();
+    await seedDefaultGroups();
   } catch (err) {
     console.warn(`[!] MongoDB initial connection failed: ${err.message}`);
     console.warn("[!] Server will continue without MongoDB persistence.");

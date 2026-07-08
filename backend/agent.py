@@ -136,7 +136,7 @@ def send_alert(alert_payload):
         _log_offline_alert(alert_payload)
 
 def send_telemetry(processes_list):
-    """Sends process telemetry sweeps if sensor is active."""
+    """Sends OK indicator instead of process telemetry sweeps if sensor is active."""
     global is_connected
     with state_lock:
         active = sensor_active if BYPASS_REMOTE_CONTROL else False
@@ -147,7 +147,7 @@ def send_telemetry(processes_list):
         
     payload = {
         "sensor_id": settings.SENSOR_ID,
-        "processes": processes_list
+        "status": "ok"
     }
     headers = {
         "X-Sensor-ID": settings.SENSOR_ID,
@@ -213,6 +213,49 @@ def connection_monitor_loop():
             sync_thread.start()
             
         time.sleep(5)
+
+def dummy_alert_loop():
+    """Background thread to send a dummy threat alert every 45 seconds for testing."""
+    from datetime import datetime
+    logger.info("[*] Testing Dummy Alert loop thread started (Interval: 45s).")
+    
+    # Wait 10 seconds initially before firing the first alert
+    time.sleep(10)
+    
+    dummy_index = 1
+    while True:
+        try:
+            alert_payload = {
+                "sensor_id": settings.SENSOR_ID,
+                "pid": 9999 + dummy_index,
+                "process_name": f"simulated_threat_x{dummy_index}.exe",
+                "risk_score": 85.0 + (dummy_index % 15),
+                "exe": f"C:\\Users\\Testing\\simulated_threat_x{dummy_index}.exe",
+                "explanations": [
+                    "Simulated rule classifier matching signature: SUSPICIOUS_HEURISTIC",
+                    f"Routinely generated test alert sequence #{dummy_index}"
+                ],
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            headers = {
+                "X-Sensor-ID": settings.SENSOR_ID,
+                "X-Sensor-Key": settings.SENSOR_KEY,
+                "Content-Type": "application/json"
+            }
+            
+            logger.info(f"[🔬 TEST ALERT] Dispatching routine 45s test threat alert for PID {alert_payload['pid']}")
+            response = requests.post(ALERTS_ENDPOINT, json=alert_payload, headers=headers, timeout=5.0)
+            if response.status_code in [200, 201]:
+                logger.info("[+] Test alert synced to backend successfully.")
+            else:
+                logger.warning(f"[-] Backend rejected test alert: status {response.status_code}")
+                
+            dummy_index += 1
+        except Exception as e:
+            logger.error(f"[-] Failed to send dummy test alert: {e}")
+            
+        time.sleep(45)
 
 def websocket_listener_loop():
     """Bidirectional WebSocket control channel thread."""
@@ -295,30 +338,31 @@ def on_ws_message(ws, message):
             mitigation_type = cmd.get("type")  # terminate, quarantine, dismiss
             logger.info(f"[+] Remote command: Mitigation {mitigation_type} requested for PID {pid}")
             success = False
-            error_msg = ""
+            error_msg = "Mitigation disabled (Detection-only mode enabled)."
             
-            try:
-                import psutil
-                proc = psutil.Process(pid)
-                if mitigation_type == "terminate":
-                    proc.kill()
-                    success = True
-                elif mitigation_type == "quarantine":
-                    proc.suspend()
-                    success = True
-                elif mitigation_type == "dismiss":
-                    try:
-                        proc.resume()
-                    except:
-                        pass
-                    success = True
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"[-] Mitigation action failed: {e}")
+            # Psutil active mitigation commented out:
+            # try:
+            #     import psutil
+            #     proc = psutil.Process(pid)
+            #     if mitigation_type == "terminate":
+            #         proc.kill()
+            #         success = True
+            #     elif mitigation_type == "quarantine":
+            #         proc.suspend()
+            #         success = True
+            #     elif mitigation_type == "dismiss":
+            #         try:
+            #             proc.resume()
+            #         except:
+            #             pass
+            #         success = True
+            # except Exception as e:
+            #     error_msg = str(e)
+            #     logger.error(f"[-] Mitigation action failed: {e}")
                 
             response = {
-                "status": "success" if success else "error",
-                "message": f"Mitigation {mitigation_type} executed" if success else error_msg,
+                "status": "error",
+                "message": error_msg,
                 "action": "mitigate",
                 "pid": pid,
                 "type": mitigation_type,
@@ -373,6 +417,9 @@ def main():
     
     ws_thread = threading.Thread(target=websocket_listener_loop, daemon=True)
     ws_thread.start()
+
+    dummy_thread = threading.Thread(target=dummy_alert_loop, daemon=True)
+    dummy_thread.start()
 
     if sensor_active:
         print("[+] Sensor initialized. Starting active polling...")

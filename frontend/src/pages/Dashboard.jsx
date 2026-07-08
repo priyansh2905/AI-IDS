@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 import { exitGroup } from '../store/groupSlice';
 import { logoutUser } from '../store/userSlice';
 import { 
@@ -159,10 +160,10 @@ export default function Dashboard() {
                       return (
                         <div key={g.id} className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col gap-4 shadow-lg justify-between h-56 font-mono">
                           <div>
-                            <div className="flex items-center gap-2 text-indigo-400">
+                            <Link to={`/groups/${g.id}`} className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-all hover:underline select-none cursor-pointer">
                               <Users className="w-4 h-4" />
                               <h3 className="font-extrabold text-xs text-gray-200 truncate uppercase">{g.name}</h3>
-                            </div>
+                            </Link>
                             
                             <p className="text-[10px] text-gray-500 mt-2">
                               Leader: <strong className="text-gray-400">{ownerName}</strong>
@@ -178,12 +179,21 @@ export default function Dashboard() {
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => handleLeaveGroup(g.id)}
-                            className="w-full flex items-center justify-center gap-1 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-all shrink-0"
-                          >
-                            Leave Collaborative Cell
-                          </button>
+                          <div className="flex gap-2 mt-2 shrink-0">
+                            <Link
+                              to={`/groups/${g.id}`}
+                              className="flex-1 flex items-center justify-center gap-1 py-2 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/20 text-indigo-400 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-all text-center select-none"
+                            >
+                              Enter Cell
+                            </Link>
+                            <button
+                              onClick={() => handleLeaveGroup(g.id)}
+                              className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-all shrink-0"
+                              title="Leave Cell"
+                            >
+                              Leave
+                            </button>
+                          </div>
                         </div>
                       );
                     })
@@ -263,6 +273,10 @@ export default function Dashboard() {
                   <span className="px-2 py-0.5 rounded border border-indigo-500/20 bg-indigo-500/10 text-indigo-400 text-[9px] font-bold uppercase tracking-wider">
                     {currentUser.role}
                   </span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 py-2">
+                  <span className="text-gray-500 text-indigo-400">Unique Search Key</span>
+                  <span className="text-indigo-400 font-bold select-all">{currentUser.user_key || 'N/A'}</span>
                 </div>
                 {currentUser.sensor_id && (
                   <div className="flex justify-between border-b border-white/5 py-2">

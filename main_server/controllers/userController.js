@@ -22,11 +22,14 @@ const signup = async (req, res) => {
       return res.status(400).json({ status: "error", message: "Username is already taken" });
     }
 
+    const user_key = `key-${username.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
+
     const newUser = await User.create({
       username,
       password,
       role,
-      sensor_id: role === "type-2" ? sensor_id : null
+      sensor_id: role === "type-2" ? sensor_id : null,
+      user_key
     });
 
     res.json({
@@ -35,7 +38,8 @@ const signup = async (req, res) => {
         id: newUser._id,
         username: newUser.username,
         role: newUser.role,
-        sensor_id: newUser.sensor_id
+        sensor_id: newUser.sensor_id,
+        user_key: newUser.user_key
       }
     });
   } catch (err) {
@@ -72,7 +76,13 @@ const login = async (req, res) => {
     }
 
     // Generate mock JWT token base64 encoded
-    const userData = { id: found._id, username: found.username, role: found.role, sensor_id: found.sensor_id };
+    const userData = {
+      id: found._id,
+      username: found.username,
+      role: found.role,
+      sensor_id: found.sensor_id,
+      user_key: found.user_key
+    };
     const mockToken = `mock-jwt-token-head.${Buffer.from(JSON.stringify(userData)).toString("base64")}.signature`;
 
     res.json({
@@ -95,7 +105,8 @@ const getUsers = async (_req, res) => {
       id: u._id,
       username: u.username,
       role: u.role,
-      sensor_id: u.sensor_id
+      sensor_id: u.sensor_id,
+      user_key: u.user_key
     }));
     res.json({ status: "ok", data: formatted });
   } catch (err) {

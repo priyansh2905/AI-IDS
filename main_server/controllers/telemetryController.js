@@ -47,7 +47,8 @@ const getLatestTelemetry = async (req, res) => {
       status: "ok",
       sensor_id: doc.sensor_id,
       received_at: doc.received_at,
-      data: doc.processes,
+      data: doc.processes || [],
+      indicator: doc.status || "ok"
     });
   } catch (err) {
     res.json({
