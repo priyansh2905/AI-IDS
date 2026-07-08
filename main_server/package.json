@@ -8,6 +8,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -15,6 +16,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.24.1",
     "node-fetch": "^3.3.2",
+    "pdfkit": "^0.19.1",
     "ws": "^8.17.1"
   },
   "devDependencies": {

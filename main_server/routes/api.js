@@ -12,6 +12,7 @@ const { clientCount } = require("../websocket/broadcaster");
 
 const { getTelemetry, getLatestTelemetry } = require("../controllers/telemetryController");
 const { getAlerts, getAlertStats, acknowledgeAlert } = require("../controllers/alertController");
+const { generateAlertReport } = require("../controllers/reportController");
 const { getEvents } = require("../controllers/eventController");
 const { mitigateProcess, retrainModel } = require("../controllers/mitigateController");
 const { signup, login, getUsers, deleteUser } = require("../controllers/userController");
@@ -74,6 +75,7 @@ router.get("/telemetry/latest", getLatestTelemetry);
 router.get("/alerts/stats", getAlertStats);   // must be before /alerts/:id
 router.get("/alerts", getAlerts);
 router.patch("/alerts/:id/acknowledge", acknowledgeAlert);
+router.post("/alerts/:id/report", generateAlertReport);
 
 // ── Events ────────────────────────────────────────────────────────────────────
 router.get("/events", getEvents);

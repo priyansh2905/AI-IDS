@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
-import { AlertTriangle, Clock, ShieldCheck, Ban, FileWarning, HelpCircle } from 'lucide-react';
+import { AlertTriangle, Clock, ShieldCheck, Ban, FileWarning, HelpCircle, FileText, Loader2, CheckCircle2 } from 'lucide-react';
 
 export default function Alerts({ onMitigate }) {
   // Selectors mapped to respective store slices
@@ -12,6 +12,8 @@ export default function Alerts({ onMitigate }) {
   const [selectedAlertIdx, setSelectedAlertIdx] = useState(0);
   const [confirmMitigate, setConfirmMitigate] = useState(null); // { pid, action }
   const [isExecuting, setIsExecuting] = useState(false);
+  const [reportState, setReportState] = useState('idle'); // 'idle' | 'generating' | 'done' | 'error'
+  const [reportError, setReportError] = useState('');
 
   // Group-based sensor filtering
   const allowedSensorIds = React.useMemo(() => {
@@ -58,6 +60,42 @@ export default function Alerts({ onMitigate }) {
       alert("Remediation execution failed.");
     } finally {
       setIsExecuting(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!selectedAlert || reportState === 'generating') return;
+    setReportState('generating');
+    setReportError('');
+    try {
+      const alertId = selectedAlert._id || 'mock';
+      const res = await fetch(`/api/alerts/${alertId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert: selectedAlert }), // send full alert for mock fallback
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Server error ${res.status}`);
+      }
+
+      // Trigger browser download from blob
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hids-report-pid${selectedAlert.pid}-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setReportState('done');
+      setTimeout(() => setReportState('idle'), 3000);
+    } catch (err) {
+      setReportError(err.message);
+      setReportState('error');
+      setTimeout(() => setReportState('idle'), 5000);
     }
   };
 
@@ -170,6 +208,42 @@ export default function Alerts({ onMitigate }) {
                 <span className="text-gray-500 uppercase text-[9px] font-bold tracking-wider">Detection Key Timestamp</span>
                 <span className="text-gray-300 font-bold">{new Date(selectedAlert.timestamp).toLocaleString()}</span>
               </div>
+            </div>
+
+            {/* REPORT GENERATION */}
+            <div className="flex flex-col gap-2 border-t border-white/5 pt-4">
+              <div>
+                <h3 className="text-xs font-extrabold uppercase text-gray-400 tracking-wider font-mono flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-indigo-400" /> Forensic PDF Report
+                </h3>
+                <p className="text-[10px] text-gray-500 font-mono mt-0.5">Generate a Gemini AI-authored forensic analysis report for this incident</p>
+              </div>
+
+              {reportState === 'error' && (
+                <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[10px] text-rose-300 font-mono">
+                  ✗ {reportError}
+                </div>
+              )}
+
+              <button
+                onClick={handleGenerateReport}
+                disabled={reportState === 'generating'}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider font-mono transition-all cursor-pointer border ${
+                  reportState === 'done'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : reportState === 'generating'
+                    ? 'bg-indigo-500/5 border-indigo-500/20 text-indigo-400/60 cursor-wait'
+                    : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/25 hover:border-indigo-500/45 text-indigo-400 hover:scale-[1.01]'
+                }`}
+              >
+                {reportState === 'generating' ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Generating with Gemini...</>
+                ) : reportState === 'done' ? (
+                  <><CheckCircle2 className="w-4 h-4" /> Report Downloaded!</>
+                ) : (
+                  <><FileText className="w-4 h-4" /> Generate PDF Report</>
+                )}
+              </button>
             </div>
 
             {/* MITIGATION DRAWER CONTROLS */}
