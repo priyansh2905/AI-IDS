@@ -22,7 +22,7 @@ ALERTS_ENDPOINT = f"{BACKEND_URL}/api/alerts"
 EVENTS_ENDPOINT = f"{BACKEND_URL}/api/events"
 
 # Purely for local testing: hardcoded toggle to bypass remote sensor C2 control signals
-BYPASS_REMOTE_CONTROL = False
+BYPASS_REMOTE_CONTROL = True
 
 # Control states
 is_connected = False
@@ -98,6 +98,10 @@ def _sync_offline_alerts():
 
 def send_alert(alert_payload):
     """Sends alert over HTTP, falling back to local logs if offline."""
+    # Only send threat alerts when risk % is above 80
+    if alert_payload.get("risk_score", 0) <= 80:
+        return
+
     global is_connected
     with state_lock:
         active = sensor_active if BYPASS_REMOTE_CONTROL else False

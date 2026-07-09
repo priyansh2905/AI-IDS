@@ -9,13 +9,9 @@ export default function Sidebar() {
   const currentUser = useSelector((state) => state.user.user);
 
   const menuItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard }
+    { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/alerts', label: 'Alerts Center', icon: AlertTriangle }
   ];
-
-  // Hide Alerts Center and ML Engine from Type-1 Monitors
-  if (currentUser && currentUser.role !== 'type-1') {
-    menuItems.push({ path: '/alerts', label: 'Alerts Center', icon: AlertTriangle });
-  }
 
   menuItems.push({ path: '/groups', label: 'Groups Cell', icon: Users });
 

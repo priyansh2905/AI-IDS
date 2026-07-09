@@ -211,6 +211,26 @@ export const searchPublicGroup = createAsyncThunk(
   }
 );
 
+export const updateGroupMemberSettings = createAsyncThunk(
+  'group/updateGroupMemberSettings',
+  async ({ groupId, userId, email_alerts, email_join_requests, email_invites }, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/member-settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, email_alerts, email_join_requests, email_invites })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to update member email settings');
+      }
+      return data.group;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 const initialState = {
   groupsList: []
 };
@@ -273,6 +293,13 @@ const groupSlice = createSlice({
         }
       })
       .addCase(updateGroupStatus.fulfilled, (state, action) => {
+        const updated = action.payload;
+        const index = state.groupsList.findIndex(g => g.id === updated.id);
+        if (index !== -1) {
+          state.groupsList[index] = updated;
+        }
+      })
+      .addCase(updateGroupMemberSettings.fulfilled, (state, action) => {
         const updated = action.payload;
         const index = state.groupsList.findIndex(g => g.id === updated.id);
         if (index !== -1) {

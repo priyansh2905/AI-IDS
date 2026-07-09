@@ -9,7 +9,10 @@
 const Telemetry = require("../models/Telemetry");
 const Alert = require("../models/Alert");
 const Event = require("../models/Event");
+const Group = require("../models/Group");
+const User = require("../models/User");
 const { broadcast } = require("../websocket/broadcaster");
+const { sendAlertEmail } = require("../services/emailService");
 
 /**
  * POST /api/internal/telemetry
@@ -35,6 +38,38 @@ const receiveTelemetry = async (req, res) => {
  * Receives an intrusion alert from FastAPI, persists to MongoDB,
  * and broadcasts it to connected frontend clients.
  */
+async function triggerAlertEmails(alert) {
+  try {
+    const sensorUsers = await User.find({ sensor_id: alert.sensor_id });
+    if (!sensorUsers.length) return;
+
+    const sensorUserIds = sensorUsers.map(u => u._id);
+    const groups = await Group.find({ members: { $in: sensorUserIds } });
+    if (!groups.length) return;
+
+    const emailedUserIds = new Set();
+
+    for (const grp of groups) {
+      if (!grp.member_preferences || !grp.member_preferences.length) continue;
+
+      for (const pref of grp.member_preferences) {
+        if (pref.email_alerts) {
+          const uidStr = pref.user_id.toString();
+          if (emailedUserIds.has(uidStr)) continue;
+
+          const user = await User.findById(pref.user_id);
+          if (user && user.email) {
+            await sendAlertEmail(user.email, alert);
+            emailedUserIds.add(uidStr);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[-] Error inside triggerAlertEmails:", err.message);
+  }
+}
+
 const receiveAlert = async (req, res) => {
   try {
     const payload = req.body;
@@ -44,6 +79,10 @@ const receiveAlert = async (req, res) => {
     console.warn(`\x1b[33m[🚨 ALERT INGESTED] Threat raised on Sensor: ${payload.sensor_id} | Process: ${payload.process_name} (PID: ${payload.pid}) | Risk Score: ${payload.risk_score}%\x1b[0m`);
     const doc = await Alert.create(payload);
     broadcast("alert", { ...payload, _id: doc._id });
+    
+    // Trigger emails asynchronously
+    triggerAlertEmails(doc).catch(err => console.error("[-] Email trigger exception:", err.message));
+
     res.json({ status: "ok", id: doc._id });
   } catch (err) {
     console.error("[!] Failed to persist alert:", err.message);

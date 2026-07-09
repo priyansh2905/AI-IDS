@@ -74,6 +74,26 @@ export const deleteUser = createAsyncThunk(
   }
 );
 
+export const updateUserProfile = createAsyncThunk(
+  'user/updateUserProfile',
+  async ({ email }, { rejectWithValue }) => {
+    try {
+      const res = await fetch('/api/users/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to update profile');
+      }
+      return data.user; // updated user data
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 const cachedUser = (() => {
   try {
     const cached = localStorage.getItem('hids_user');
@@ -125,6 +145,14 @@ const userSlice = createSlice({
       })
       .addCase(deleteUser.fulfilled, (state, action) => {
         state.usersList = state.usersList.filter(u => u.id !== action.payload);
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.user = action.payload;
+        localStorage.setItem('hids_user', JSON.stringify(action.payload));
+        const idx = state.usersList.findIndex(u => u.id === action.payload.id);
+        if (idx !== -1) {
+          state.usersList[idx] = action.payload;
+        }
       });
   }
 });

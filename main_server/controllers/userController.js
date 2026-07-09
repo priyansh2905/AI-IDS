@@ -42,7 +42,8 @@ const signup = async (req, res) => {
       username: newUser.username,
       role: newUser.role,
       sensor_id: newUser.sensor_id,
-      user_key: newUser.user_key
+      user_key: newUser.user_key,
+      email: newUser.email || null
     };
 
     // Generate real JWT token
@@ -100,7 +101,8 @@ const login = async (req, res) => {
       username: found.username,
       role: found.role,
       sensor_id: found.sensor_id,
-      user_key: found.user_key
+      user_key: found.user_key,
+      email: found.email || null
     };
 
     // Generate real JWT token
@@ -128,7 +130,8 @@ const getUsers = async (_req, res) => {
       username: u.username,
       role: u.role,
       sensor_id: u.sensor_id,
-      user_key: u.user_key
+      user_key: u.user_key,
+      email: u.email || null
     }));
     res.json({ status: "ok", data: formatted });
   } catch (err) {
@@ -165,4 +168,37 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, getUsers, deleteUser };
+/**
+ * PATCH /api/users/profile
+ */
+const updateProfile = async (req, res) => {
+  const { email } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      { email },
+      { new: true, select: "-password" }
+    );
+    if (!updated) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    res.json({
+      status: "ok",
+      user: {
+        id: updated._id.toString(),
+        username: updated.username,
+        role: updated.role,
+        sensor_id: updated.sensor_id,
+        user_key: updated.user_key,
+        email: updated.email || null
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+module.exports = { signup, login, getUsers, deleteUser, updateProfile };

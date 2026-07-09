@@ -26,11 +26,20 @@ const seedDefaultUsers = async () => {
           password: hashedPassword
         });
         console.log(`[*] Seeded default developer credential: ${def.username}`);
-      } else if (!exists.password.startsWith("$2a$") && !exists.password.startsWith("$2b$")) {
-        // Auto-migrate plaintext to bcrypt hash
-        exists.password = hashedPassword;
-        await exists.save();
-        console.log(`[*] Migrated default developer credential to hashed password: ${def.username}`);
+      } else {
+        let needsSave = false;
+        if (!exists.user_key) {
+          exists.user_key = def.user_key;
+          needsSave = true;
+        }
+        if (!exists.password.startsWith("$2a$") && !exists.password.startsWith("$2b$")) {
+          exists.password = hashedPassword;
+          needsSave = true;
+        }
+        if (needsSave) {
+          await exists.save();
+          console.log(`[*] Updated default developer credential: ${def.username}`);
+        }
       }
     }
   } catch (e) {

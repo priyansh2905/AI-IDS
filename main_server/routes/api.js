@@ -15,7 +15,7 @@ const { getAlerts, getAlertStats, acknowledgeAlert } = require("../controllers/a
 const { generateAlertReport } = require("../controllers/reportController");
 const { getEvents } = require("../controllers/eventController");
 const { mitigateProcess, retrainModel } = require("../controllers/mitigateController");
-const { signup, login, getUsers, deleteUser } = require("../controllers/userController");
+const { signup, login, getUsers, deleteUser, updateProfile } = require("../controllers/userController");
 const {
   getGroups,
   createGroup,
@@ -27,7 +27,8 @@ const {
   acceptInvite,
   declineInvite,
   updateGroupStatus,
-  searchPublicGroup
+  searchPublicGroup,
+  updateGroupMemberSettings
 } = require("../controllers/groupController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -53,6 +54,7 @@ router.use(authMiddleware);
 // ── Secure Users ─────────────────────────────────────────────────────────────
 router.get("/users", getUsers);
 router.delete("/users/:id", deleteUser);
+router.patch("/users/profile", updateProfile);
 
 // ── Collaborative Groups ──────────────────────────────────────────────────────
 router.get("/groups", getGroups);
@@ -66,6 +68,7 @@ router.post("/groups/:id/accept", acceptInvite);
 router.post("/groups/:id/decline", declineInvite);
 router.patch("/groups/:id/status", updateGroupStatus);
 router.get("/groups/search/:group_key", searchPublicGroup);
+router.patch("/groups/:id/member-settings", updateGroupMemberSettings);
 
 // ── Telemetry ─────────────────────────────────────────────────────────────────
 router.get("/telemetry", getTelemetry);

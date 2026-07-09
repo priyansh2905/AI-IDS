@@ -42,7 +42,15 @@ const getLatestTelemetry = async (req, res) => {
   try {
     const filter = req.query.sensor_id ? { sensor_id: req.query.sensor_id } : {};
     const doc = await Telemetry.findOne(filter).sort({ received_at: -1 }).lean();
-    if (!doc) throw new Error("No telemetry doc found");
+    if (!doc) {
+      return res.json({
+        status: "ok",
+        sensor_id: req.query.sensor_id,
+        received_at: null,
+        data: [],
+        note: "No telemetry data found for this sensor"
+      });
+    }
     res.json({
       status: "ok",
       sensor_id: doc.sensor_id,
@@ -54,7 +62,7 @@ const getLatestTelemetry = async (req, res) => {
     res.json({
       status: "ok",
       sensor_id: req.query.sensor_id || "sensor-windows-testing",
-      received_at: new Date(),
+      received_at: new Date(0), // Sets timestamp to 1970 to correctly resolve as Offline
       data: [
         { pid: 1044, name: "chrome.exe", cpu_percent: 1.5, memory_percent: 4.5, risk_score: 5.5, read_count: 50, write_count: 12 },
         { pid: 4892, name: "powershell.exe (TESTING MOCK)", cpu_percent: 2.8, memory_percent: 2.1, risk_score: 78.4, read_count: 320, write_count: 240 },

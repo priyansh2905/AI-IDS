@@ -18,14 +18,14 @@ export default function Header({ onSync }) {
           <span className="text-xs text-gray-400 font-mono">HOST INTRUSION DETECTION SYSTEM • V1.0.0</span>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-6">
         <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
           <span className={`inline-block w-2.5 h-2.5 rounded-full ${wsConnected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]'}`} />
           Sensor Host: <span className={wsConnected ? 'text-emerald-400' : 'text-rose-400'}>{wsConnected ? 'ACTIVE' : 'DISCONNECTED'}</span>
         </span>
-        <button 
-          onClick={onSync} 
+        <button
+          onClick={onSync}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-cyan-400 border border-cyan-500/20 bg-cyan-500/10 hover:bg-cyan-500/20 cursor-pointer transition-all duration-300"
         >
           <RefreshCw className="w-3.5 h-3.5" /> Sync

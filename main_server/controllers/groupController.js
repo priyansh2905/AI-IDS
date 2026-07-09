@@ -5,23 +5,32 @@
 
 const Group = require("../models/Group");
 const User = require("../models/User");
+const { sendJoinRequestEmail, sendInviteEmail } = require("../services/emailService");
+
+const serializeGroup = (g) => ({
+  id: g._id.toString(),
+  name: g.name,
+  creator_id: g.creator_id.toString(),
+  members: g.members.map(m => m.toString()),
+  pending_requests: g.pending_requests.map(r => r.toString()),
+  pending_invitations: g.pending_invitations ? g.pending_invitations.map(i => i.toString()) : [],
+  group_key: g.group_key,
+  status: g.status || "public",
+  member_preferences: (g.member_preferences || []).map(p => ({
+    user_id: p.user_id.toString(),
+    email_alerts: !!p.email_alerts,
+    email_join_requests: !!p.email_join_requests,
+    email_invites: !!p.email_invites
+  }))
+});
 
 /**
  * GET /api/groups
  */
 const getGroups = async (_req, res) => {
   try {
-    const groups = await Group.find().lean();
-    const formatted = groups.map(g => ({
-      id: g._id.toString(),
-      name: g.name,
-      creator_id: g.creator_id.toString(),
-      members: g.members.map(m => m.toString()),
-      pending_requests: g.pending_requests.map(r => r.toString()),
-      pending_invitations: g.pending_invitations ? g.pending_invitations.map(i => i.toString()) : [],
-      group_key: g.group_key,
-      status: g.status || "public"
-    }));
+    const groups = await Group.find();
+    const formatted = groups.map(g => serializeGroup(g));
     res.json({ status: "ok", data: formatted });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -48,21 +57,18 @@ const createGroup = async (req, res) => {
       pending_requests: [],
       pending_invitations: [],
       group_key,
-      status: "public"
+      status: "public",
+      member_preferences: [{
+        user_id: creatorId,
+        email_alerts: false,
+        email_join_requests: false,
+        email_invites: false
+      }]
     });
 
     res.json({
       status: "ok",
-      group: {
-        id: newGroup._id.toString(),
-        name: newGroup.name,
-        creator_id: newGroup.creator_id.toString(),
-        members: newGroup.members.map(m => m.toString()),
-        pending_requests: [],
-        pending_invitations: [],
-        group_key: newGroup.group_key,
-        status: newGroup.status
-      }
+      group: serializeGroup(newGroup)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -100,7 +106,12 @@ const exitGroup = async (req, res) => {
   try {
     const grp = await Group.findByIdAndUpdate(
       groupId,
-      { $pull: { members: userId } },
+      { 
+        $pull: { 
+          members: userId,
+          member_preferences: { user_id: userId }
+        } 
+      },
       { new: true }
     );
 
@@ -110,16 +121,7 @@ const exitGroup = async (req, res) => {
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
-      }
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -146,20 +148,25 @@ const joinRequest = async (req, res) => {
     if (!grp.members.includes(userId) && !grp.pending_requests.includes(userId)) {
       grp.pending_requests.push(userId);
       await grp.save();
+
+      // Trigger email to leader asynchronously
+      (async () => {
+        try {
+          const leader = await User.findById(grp.creator_id);
+          const requester = await User.findById(userId);
+          const leaderPref = grp.member_preferences?.find(p => p.user_id.toString() === grp.creator_id.toString());
+          if (leader && requester && leaderPref?.email_join_requests && leader.email) {
+            await sendJoinRequestEmail(leader.email, requester.username, grp.name);
+          }
+        } catch (e) {
+          console.warn("[-] Failed to send join request email:", e.message);
+        }
+      })();
     }
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
-      }
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -189,22 +196,24 @@ const approveJoinRequest = async (req, res) => {
       if (!grp.members.includes(userId)) {
         grp.members.push(userId);
       }
+      if (!grp.member_preferences) {
+        grp.member_preferences = [];
+      }
+      if (!grp.member_preferences.some(p => p.user_id.toString() === userId.toString())) {
+        grp.member_preferences.push({
+          user_id: userId,
+          email_alerts: false,
+          email_join_requests: false,
+          email_invites: false
+        });
+      }
     }
 
     await grp.save();
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
-      }
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -240,20 +249,24 @@ const inviteUser = async (req, res) => {
     if (!grp.pending_invitations.includes(targetUser._id)) {
       grp.pending_invitations.push(targetUser._id);
       await grp.save();
+
+      // Trigger email to invitee asynchronously
+      (async () => {
+        try {
+          if (targetUser.email) {
+            const inviter = await User.findById(grp.creator_id);
+            const inviterName = inviter ? inviter.username : "A cell leader";
+            await sendInviteEmail(targetUser.email, inviterName, grp.name);
+          }
+        } catch (e) {
+          console.warn("[-] Failed to send invite email:", e.message);
+        }
+      })();
     }
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
-      }
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -282,21 +295,23 @@ const acceptInvite = async (req, res) => {
     if (!grp.members.includes(userId)) {
       grp.members.push(userId);
     }
+    if (!grp.member_preferences) {
+      grp.member_preferences = [];
+    }
+    if (!grp.member_preferences.some(p => p.user_id.toString() === userId.toString())) {
+      grp.member_preferences.push({
+        user_id: userId,
+        email_alerts: false,
+        email_join_requests: false,
+        email_invites: false
+      });
+    }
 
     await grp.save();
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
-      }
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -325,16 +340,7 @@ const declineInvite = async (req, res) => {
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
-      }
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -365,16 +371,7 @@ const updateGroupStatus = async (req, res) => {
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
-      }
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -399,16 +396,62 @@ const searchPublicGroup = async (req, res) => {
 
     res.json({
       status: "ok",
-      group: {
-        id: grp._id.toString(),
-        name: grp.name,
-        creator_id: grp.creator_id.toString(),
-        members: grp.members.map(m => m.toString()),
-        pending_requests: grp.pending_requests.map(r => r.toString()),
-        pending_invitations: grp.pending_invitations ? grp.pending_invitations.map(i => i.toString()) : [],
-        group_key: grp.group_key,
-        status: grp.status || "public"
+      group: serializeGroup(grp)
+    });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+/**
+ * PATCH /api/groups/:id/member-settings
+ */
+const updateGroupMemberSettings = async (req, res) => {
+  const groupId = req.params.id;
+  const { userId, email_alerts, email_join_requests, email_invites } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ status: "error", message: "Missing userId" });
+  }
+
+  try {
+    const grp = await Group.findById(groupId);
+    if (!grp) {
+      return res.status(404).json({ status: "error", message: "Group not found" });
+    }
+
+    if (!grp.member_preferences) {
+      grp.member_preferences = [];
+    }
+
+    let prefIndex = grp.member_preferences.findIndex(
+      p => p.user_id.toString() === userId.toString()
+    );
+
+    if (prefIndex === -1) {
+      grp.member_preferences.push({
+        user_id: userId,
+        email_alerts: typeof email_alerts === "boolean" ? email_alerts : false,
+        email_join_requests: typeof email_join_requests === "boolean" ? email_join_requests : false,
+        email_invites: typeof email_invites === "boolean" ? email_invites : false
+      });
+    } else {
+      if (typeof email_alerts === "boolean") {
+        grp.member_preferences[prefIndex].email_alerts = email_alerts;
       }
+      if (typeof email_join_requests === "boolean") {
+        grp.member_preferences[prefIndex].email_join_requests = email_join_requests;
+      }
+      if (typeof email_invites === "boolean") {
+        grp.member_preferences[prefIndex].email_invites = email_invites;
+      }
+    }
+
+    await grp.save();
+
+    res.json({
+      status: "ok",
+      group: serializeGroup(grp)
     });
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
@@ -426,5 +469,6 @@ module.exports = {
   acceptInvite,
   declineInvite,
   updateGroupStatus,
-  searchPublicGroup
+  searchPublicGroup,
+  updateGroupMemberSettings
 };

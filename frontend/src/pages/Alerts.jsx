@@ -2,6 +2,18 @@ import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { AlertTriangle, Clock, ShieldCheck, Ban, FileWarning, HelpCircle, FileText, Loader2, CheckCircle2 } from 'lucide-react';
 
+const formatTime = (timestamp) => {
+  if (!timestamp) return 'Unknown';
+  const date = new Date(timestamp);
+  return isNaN(date.getTime()) ? 'Unknown' : date.toLocaleTimeString();
+};
+
+const formatDateTime = (timestamp) => {
+  if (!timestamp) return 'Unknown';
+  const date = new Date(timestamp);
+  return isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString();
+};
+
 export default function Alerts({ onMitigate }) {
   // Selectors mapped to respective store slices
   const alerts = useSelector((state) => state.telemetry.alerts);
@@ -118,11 +130,12 @@ export default function Alerts({ onMitigate }) {
           ) : (
             activeAlerts.map((a, idx) => {
               const isSelected = selectedAlert && selectedAlert.pid === a.pid;
-              const severityColor = a.risk_score >= 70 ? 'border-rose-500/30 bg-rose-500/5 text-rose-300' : 'border-amber-500/30 bg-amber-500/5 text-amber-300';
+              const riskVal = typeof a.risk_score === 'number' ? a.risk_score : 0;
+              const severityColor = riskVal >= 70 ? 'border-rose-500/30 bg-rose-500/5 text-rose-300' : 'border-amber-500/30 bg-amber-500/5 text-amber-300';
               
               return (
                 <div 
-                  key={a.pid}
+                  key={a._id || `${a.pid}-${idx}`}
                   onClick={() => setSelectedAlertIdx(idx)}
                   className={`p-4 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col gap-2 ${
                     isSelected 
@@ -133,7 +146,7 @@ export default function Alerts({ onMitigate }) {
                   <div className="flex justify-between items-center">
                     <span className="font-extrabold text-xs font-mono text-gray-200 select-all">PID {a.pid}</span>
                     <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase font-mono tracking-wider border ${severityColor}`}>
-                      {a.risk_score >= 70 ? 'CRITICAL' : 'WARNING'} ({a.risk_score.toFixed(0)}%)
+                      {riskVal >= 70 ? 'CRITICAL' : 'WARNING'} ({riskVal.toFixed(0)}%)
                     </span>
                   </div>
                   
@@ -144,7 +157,7 @@ export default function Alerts({ onMitigate }) {
                   
                   <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-mono mt-1 border-t border-white/5 pt-2">
                     <Clock className="w-3 h-3" />
-                    <span>Detected {new Date(a.timestamp).toLocaleTimeString()}</span>
+                    <span>Detected {formatTime(a.timestamp)}</span>
                   </div>
                 </div>
               );
@@ -170,7 +183,9 @@ export default function Alerts({ onMitigate }) {
                 <span className="text-[10px] text-gray-500 font-mono mt-0.5 select-all">PID {selectedAlert.pid} • {selectedAlert.process_name || '[Simulated Executable]'}</span>
               </div>
               <div className="flex flex-col items-end shrink-0">
-                <span className="text-2xl font-black font-mono text-rose-400">{selectedAlert.risk_score.toFixed(0)}%</span>
+                <span className="text-2xl font-black font-mono text-rose-400">
+                  {typeof selectedAlert.risk_score === 'number' ? selectedAlert.risk_score.toFixed(0) : '0'}%
+                </span>
                 <span className="text-[8px] text-gray-500 font-bold uppercase tracking-wider font-mono">Autopsy Risk Vector</span>
               </div>
             </div>
@@ -206,7 +221,7 @@ export default function Alerts({ onMitigate }) {
               </div>
               <div className="p-4 bg-slate-950/20 border border-white/5 rounded-xl flex flex-col gap-1 font-mono text-xs">
                 <span className="text-gray-500 uppercase text-[9px] font-bold tracking-wider">Detection Key Timestamp</span>
-                <span className="text-gray-300 font-bold">{new Date(selectedAlert.timestamp).toLocaleString()}</span>
+                <span className="text-gray-300 font-bold">{formatDateTime(selectedAlert.timestamp)}</span>
               </div>
             </div>
 

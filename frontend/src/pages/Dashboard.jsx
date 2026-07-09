@@ -2,23 +2,43 @@ import React, { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { exitGroup } from '../store/groupSlice';
-import { logoutUser } from '../store/userSlice';
+import { logoutUser, updateUserProfile } from '../store/userSlice';
 import { 
   Shield, Home, User, Users, AlertTriangle, LogOut, Key, Check, Activity, Clock, Ban, ShieldAlert 
 } from 'lucide-react';
 
 export default function Dashboard() {
   const dispatch = useDispatch();
-  
-  // Tab/view navigation state
-  const [activeView, setActiveView] = useState('home'); // home | profile
-  const [activeTab, setActiveTab] = useState('groups'); // groups | alerts
 
   // Modular store selectors
   const currentUser = useSelector((state) => state.user.user);
   const groupsList = useSelector((state) => state.group.groupsList);
   const usersList = useSelector((state) => state.user.usersList);
   const alerts = useSelector((state) => state.telemetry.alerts);
+  
+  // Tab/view navigation state
+  const [activeView, setActiveView] = useState('home'); // home | profile
+  const [activeTab, setActiveTab] = useState('groups'); // groups | alerts
+
+  const [emailInput, setEmailInput] = useState(currentUser?.email || '');
+  const [editEmail, setEditEmail] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  React.useEffect(() => {
+    if (currentUser) {
+      setEmailInput(currentUser.email || '');
+    }
+  }, [currentUser]);
+
+  const handleSaveEmail = async () => {
+    setProfileError('');
+    try {
+      await dispatch(updateUserProfile({ email: emailInput.trim() || null })).unwrap();
+      setEditEmail(false);
+    } catch (err) {
+      setProfileError(err || 'Failed to update email');
+    }
+  };
 
   // Group-based sensor filters
   const allowedSensorIds = useMemo(() => {
@@ -210,10 +230,14 @@ export default function Dashboard() {
                       <span>No received alerts on joined group channels.</span>
                     </div>
                   ) : (
-                    visibleAlerts.map(a => {
+                    visibleAlerts.map((a, idx) => {
                       const isCritical = a.risk_score >= 70;
                       return (
-                        <div key={a.pid} className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-lg font-mono">
+                        <Link 
+                          key={a._id || `${a.pid}-${idx}`} 
+                          to="/alerts" 
+                          className="bg-slate-900/40 hover:bg-slate-900/60 border border-white/5 hover:border-indigo-500/20 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-lg font-mono transition-all duration-300 cursor-pointer block"
+                        >
                           <div className="flex gap-4 items-start min-w-0">
                             <div className={`p-2.5 rounded-xl border shrink-0 ${isCritical ? 'bg-rose-500/10 border-rose-500/25 text-rose-400' : 'bg-amber-500/10 border-amber-500/25 text-amber-400'}`}>
                               <AlertTriangle className="w-5 h-5 animate-pulse" />
@@ -239,7 +263,7 @@ export default function Dashboard() {
                               <Clock className="w-3.5 h-3.5" /> {new Date(a.timestamp).toLocaleTimeString()}
                             </span>
                           </div>
-                        </div>
+                        </Link>
                       );
                     })
                   )}
@@ -284,15 +308,60 @@ export default function Dashboard() {
                     <span className="text-cyan-400 font-bold select-all">{currentUser.sensor_id}</span>
                   </div>
                 )}
+                <div className="flex justify-between border-b border-white/5 py-2">
+                  <span className="text-gray-500 text-indigo-400">Email Address</span>
+                  <span className="text-indigo-400 font-bold select-all">{currentUser.email || 'Not configured'}</span>
+                </div>
                 <div className="flex justify-between pt-2">
                   <span className="text-gray-500">Joined Group Cells</span>
                   <span className="text-gray-200 font-bold">{myGroups.length} Connected</span>
                 </div>
               </div>
 
+              {/* INLINE EMAIL CONFIGURATION */}
+              <div className="border-t border-white/5 pt-4 flex flex-col gap-2 font-mono">
+                {editEmail ? (
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Configure Email</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        placeholder="Enter email address..."
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slate-950/60 border border-white/5 text-xs text-gray-200 rounded outline-none focus:border-indigo-500/50 transition-all font-mono"
+                      />
+                      <button
+                        onClick={handleSaveEmail}
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditEmail(false);
+                          setEmailInput(currentUser.email || '');
+                        }}
+                        className="px-3.5 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {profileError && <span className="text-[9px] text-rose-400">{profileError}</span>}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setEditEmail(true)}
+                    className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                  >
+                    {currentUser.email ? 'Change Email Address' : 'Configure Email Address'}
+                  </button>
+                )}
+              </div>
+
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-1.5 py-3 mt-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 rounded-lg text-xs font-bold uppercase cursor-pointer transition-all"
+                className="w-full flex items-center justify-center gap-1.5 py-3 mt-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
               >
                 <LogOut className="w-4 h-4" /> Dissolve Session
               </button>
