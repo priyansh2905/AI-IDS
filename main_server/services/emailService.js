@@ -4,20 +4,34 @@ const nodemailer = require("nodemailer");
 const host = process.env.SMTP_HOST || "smtp.ethereal.email";
 const port = parseInt(process.env.SMTP_PORT || "587");
 const user = process.env.SMTP_USER || "mock_user";
-const pass = process.env.SMTP_PASS || "mock_pass";
+const pass = "psvh fdds pzqq ybgf";
 const from = process.env.SMTP_FROM || "no-reply@ai-hids.local";
 
 let transporter;
 try {
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass
-    }
-  });
+  const isGmail = host.includes("gmail") || user.endsWith("@gmail.com");
+  const transportConfig = isGmail 
+    ? {
+        service: "gmail",
+        auth: {
+          user,
+          pass
+        }
+      }
+    : {
+        host,
+        port,
+        secure: port === 465,
+        auth: {
+          user,
+          pass
+        },
+        tls: {
+          rejectUnauthorized: false
+        }
+      };
+
+  transporter = nodemailer.createTransport(transportConfig);
 } catch (e) {
   console.error("[-] Email transporter initialization failed:", e.message);
 }
@@ -49,10 +63,31 @@ const sendEmail = async ({ to, subject, html }) => {
   }
 };
 
+const serverStartupTime = Date.now();
+const sentAlertKeys = new Set();
+
 /**
  * Format and send Threat Alert notification email
  */
 const sendAlertEmail = async (toEmail, alert) => {
+  // Forget all past alerts before server startup
+  const alertTime = alert.timestamp ? new Date(alert.timestamp).getTime() : Date.now();
+  if (alertTime < serverStartupTime) {
+    console.log(`[~] Ignored past alert email trigger: ${alert.process_name || 'unknown'} (Timestamp: ${alert.timestamp})`);
+    return;
+  }
+
+  // Deduplicate: send email once per alert type (classification / process_name)
+  const alertType = alert.classification || alert.process_name || 'generic-anomaly';
+  const dedupKey = `${toEmail}-${alertType}`;
+  if (sentAlertKeys.has(dedupKey)) {
+    console.log(`[~] Duplicate alert email suppressed for: ${toEmail} | Type: ${alertType}`);
+    return;
+  }
+
+  // Register immediately to prevent rapid-fire duplicates
+  sentAlertKeys.add(dedupKey);
+
   const riskVal = typeof alert.risk_score === 'number' ? alert.risk_score : 0;
   const isCritical = riskVal >= 70;
   const badgeColor = isCritical ? '#f43f5e' : '#f59e0b';

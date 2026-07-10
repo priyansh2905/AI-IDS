@@ -2,11 +2,59 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { setSelectedPid } from '../store/telemetrySlice';
-import { updateGroupMemberSettings } from '../store/groupSlice';
+import { updateGroupMemberSettings, inviteUser } from '../store/groupSlice';
 import { 
   Users, Shield, Radio, Activity, ArrowLeft, AlertTriangle, Clock, 
   CheckCircle2, AlertCircle, ShieldAlert 
 } from 'lucide-react';
+
+function CellInviteForm({ groupId }) {
+  const dispatch = useDispatch();
+  const [inviteKey, setInviteKey] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
+  const [statusType, setStatusType] = useState('info');
+
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    setStatusMsg('');
+    if (!inviteKey.trim()) return;
+
+    try {
+      await dispatch(inviteUser({ groupId, userKey: inviteKey.trim() })).unwrap();
+      setStatusType('success');
+      setStatusMsg('Invitation sent successfully!');
+      setInviteKey('');
+    } catch (err) {
+      setStatusType('error');
+      setStatusMsg(err || 'Failed to send invitation.');
+    }
+  };
+
+  return (
+    <form onSubmit={handleInvite} className="flex flex-col gap-2 font-mono">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="User key (key-username-xxxx)..."
+          value={inviteKey}
+          onChange={(e) => setInviteKey(e.target.value)}
+          className="flex-1 px-3 py-1.5 bg-slate-950/60 border border-white/5 text-xs text-gray-300 rounded outline-none focus:border-indigo-500/50 transition-all font-mono"
+        />
+        <button
+          type="submit"
+          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold uppercase cursor-pointer transition-all font-mono shrink-0"
+        >
+          Invite
+        </button>
+      </div>
+      {statusMsg && (
+        <span className={`text-[9px] font-mono mt-0.5 ${statusType === 'error' ? 'text-rose-400' : 'text-emerald-400'}`}>
+          {statusMsg}
+        </span>
+      )}
+    </form>
+  );
+}
 
 export default function GroupDetails({ onMitigate }) {
   const { id } = useParams();
@@ -231,64 +279,110 @@ export default function GroupDetails({ onMitigate }) {
       {/* TWO PANEL CONTENT */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-0">
         
-        {/* MEMBERS INDEX LIST (2/5 cols) */}
-        <section className="lg:col-span-2 bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex flex-col gap-4 min-h-[400px]">
-          <div>
-            <h2 className="text-sm font-extrabold tracking-wider uppercase text-gray-200 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-indigo-400" /> Cell Members ({group.members.length})
-            </h2>
-            <p className="text-[10px] text-gray-500 mt-0.5">Assigned endpoint clearances and real-time connectivity status</p>
-          </div>
+        {/* MEMBERS INDEX LIST & INVITATIONS (2/5 cols) */}
+        <div className="lg:col-span-2 flex flex-col gap-6 min-h-0">
+          <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex flex-col gap-4 min-h-[350px]">
+            <div>
+              <h2 className="text-sm font-extrabold tracking-wider uppercase text-gray-200 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-indigo-400" /> Cell Members ({group.members.length})
+              </h2>
+              <p className="text-[10px] text-gray-500 mt-0.5">Assigned endpoint clearances and real-time connectivity status</p>
+            </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[380px] flex flex-col gap-3 pr-1">
-            {group.members.map(uid => {
-              const m = getUserDetails(uid);
-              const isSelf = m.id === currentUser.id;
-              
-              let roleBadge = 'border-slate-500/25 bg-slate-500/10 text-slate-400';
-              if (m.role === 'admin') roleBadge = 'border-rose-500/25 bg-rose-500/10 text-rose-400';
-              else if (m.role === 'type-2') roleBadge = 'border-cyan-500/25 bg-cyan-500/10 text-cyan-400';
+            <div className="flex-1 overflow-y-auto max-h-[340px] flex flex-col gap-3 pr-1">
+              {group.members.map(uid => {
+                const m = getUserDetails(uid);
+                const isSelf = m.id === currentUser.id;
+                
+                let roleBadge = 'border-slate-500/25 bg-slate-500/10 text-slate-400';
+                if (m.role === 'admin') roleBadge = 'border-rose-500/25 bg-rose-500/10 text-rose-400';
+                else if (m.role === 'type-2') roleBadge = 'border-cyan-500/25 bg-cyan-500/10 text-cyan-400';
 
-              let statusText = 'Console Session Active';
-              let isOnline = true;
-              let showStatus = true;
-              if (m.role === 'type-2') {
-                statusText = m.sensor_id ? (sensorStatus[m.sensor_id] || 'Offline (Inactive)') : 'Offline (No Sensor)';
-                isOnline = statusText.includes('Online') || statusText.includes('Monitoring');
-              } else if (m.role === 'type-1') {
-                showStatus = false;
-              }
+                let statusText = 'Console Session Active';
+                let isOnline = true;
+                let showStatus = true;
+                if (m.role === 'type-2') {
+                  statusText = m.sensor_id ? (sensorStatus[m.sensor_id] || 'Offline (Inactive)') : 'Offline (No Sensor)';
+                  isOnline = statusText.includes('Online') || statusText.includes('Monitoring');
+                } else if (m.role === 'type-1') {
+                  showStatus = false;
+                }
 
-              return (
-                <div key={m.id} className="p-3.5 bg-slate-950/25 border border-white/5 rounded-xl flex items-center justify-between gap-4">
-                  <div className="min-w-0 flex flex-col gap-1">
-                    <span className="font-extrabold text-gray-200 text-xs truncate">
-                      {m.username} {isSelf && <span className="text-[9px] text-gray-500">(you)</span>}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase tracking-wider self-start ${roleBadge}`}>
-                      {m.role}
-                    </span>
-                  </div>
-                  
-                  <div className="text-right shrink-0">
-                    {showStatus && (
-                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold ${
-                        isOnline ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        <Radio className={`w-3.5 h-3.5 ${isOnline ? 'animate-pulse' : ''}`} /> {statusText}
+                return (
+                  <div key={m.id} className="p-3.5 bg-slate-950/25 border border-white/5 rounded-xl flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex flex-col gap-1">
+                      <span className="font-extrabold text-gray-200 text-xs truncate">
+                        {m.username} {isSelf && <span className="text-[9px] text-gray-500">(you)</span>}
                       </span>
-                    )}
-                    {m.sensor_id && (
-                      <span className="block text-[8px] text-gray-500 mt-1 select-all" title={m.sensor_id}>
-                        Mapping: {m.sensor_id}
+                      <span className={`px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase tracking-wider self-start ${roleBadge}`}>
+                        {m.role}
                       </span>
-                    )}
+                    </div>
+                    
+                    <div className="text-right shrink-0">
+                      {showStatus && (
+                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold ${
+                          isOnline ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          <Radio className={`w-3.5 h-3.5 ${isOnline ? 'animate-pulse' : ''}`} /> {statusText}
+                        </span>
+                      )}
+                      {m.sensor_id && (
+                        <span className="block text-[8px] text-gray-500 mt-1 select-all" title={m.sensor_id}>
+                          Mapping: {m.sensor_id}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* CELL INVITATIONS / MANAGEMENT */}
+          {isOwner && (
+            <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex flex-col gap-4 font-mono text-xs animate-fadeIn">
+              <div>
+                <h2 className="text-sm font-extrabold tracking-wider uppercase text-gray-200">Cell Invitation Console</h2>
+                <p className="text-[10px] text-gray-500 mt-0.5">Invite new monitoring analysts or sensor endpoints to this cell</p>
+              </div>
+
+              {/* INVITATION FORM */}
+              <div className="border-t border-white/5 pt-3">
+                <CellInviteForm groupId={group.id} />
+              </div>
+
+              {/* PENDING INVITATIONS LIST */}
+              <div className="flex flex-col gap-2.5 mt-2">
+                <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">
+                  Pending Invitations ({group.pending_invitations?.length || 0})
+                </span>
+                {(!group.pending_invitations || group.pending_invitations.length === 0) ? (
+                  <span className="text-[9px] text-gray-600 italic">No pending invitations for this cell.</span>
+                ) : (
+                  <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1">
+                    {group.pending_invitations.map(uid => {
+                      const invitee = getUserDetails(uid);
+                      return (
+                        <div key={uid} className="p-2.5 bg-slate-950/20 border border-white/5 rounded-lg flex items-center justify-between text-[11px] font-mono">
+                          <div className="min-w-0">
+                            <strong className="text-gray-300 block truncate">{invitee.username}</strong>
+                            <span className="text-[9px] text-gray-500 uppercase tracking-wide">
+                              {invitee.role === 'type-2' ? 'Sensor Host' : 'Monitor Analyst'}
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[8px] font-bold uppercase rounded">
+                            Pending
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
 
         {/* ALERTS FEED LIST (3/5 cols) */}
         <section className="lg:col-span-3 bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex flex-col gap-4 min-h-[400px]">
