@@ -105,7 +105,7 @@ export default function App() {
     let ws;
     const connectWS = () => {
       const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProto}//${window.location.host}/ws`;
+      const wsUrl = import.meta.env.VITE_WS_URL || `${wsProto}//${window.location.host}/ws`;
       ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {

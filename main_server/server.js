@@ -74,12 +74,13 @@ const start = async () => {
   broadcaster.init(server);
 
   // 3. Listen
-  server.listen(PORT, "127.0.0.1", () => {
+  const HOST = process.env.EXPRESS_HOST || "0.0.0.0";
+  server.listen(PORT, HOST, () => {
     console.log("=============================================");
     console.log("   AI-HIDS Express.js Main Server           ");
     console.log("=============================================");
-    console.log(`[+] HTTP API  →  http://127.0.0.1:${PORT}/api/health`);
-    console.log(`[+] WebSocket →  ws://127.0.0.1:${PORT}/ws`);
+    console.log(`[+] HTTP API  →  http://${HOST}:${PORT}/api/health`);
+    console.log(`[+] WebSocket →  ws://${HOST}:${PORT}/ws`);
     console.log("=============================================");
   });
 };

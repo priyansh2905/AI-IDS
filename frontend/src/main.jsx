@@ -11,7 +11,18 @@ import App from './App.jsx'
 // except the public auth routes (/api/auth/login and /api/auth/signup).
 const _originalFetch = window.fetch;
 window.fetch = async (input, init = {}) => {
-  const url = typeof input === 'string' ? input : input?.url ?? '';
+  let url = typeof input === 'string' ? input : input?.url ?? '';
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+
+  if (url.startsWith('/api/') && apiBase) {
+    url = `${apiBase}${url}`;
+    if (typeof input === 'string') {
+      input = url;
+    } else {
+      input = new Request(url, input);
+    }
+  }
+
   const isApiCall = url.startsWith('/api/') || url.includes('/api/');
   const isAuthRoute = url.includes('/api/auth/');
 
