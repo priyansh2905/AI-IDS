@@ -103,7 +103,7 @@ export default function Dashboard() {
           <Shield className="w-6 h-6 text-indigo-400 animate-pulse" />
           <div>
             <h1 className="text-sm font-extrabold tracking-wider bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent uppercase font-mono">
-              Antigravity AI-HIDS
+              AI-HIDS
             </h1>
             <span className="text-[9px] text-gray-500 font-mono block">COLLABORATIVE SECURITY ENVIRONMENT</span>
           </div>

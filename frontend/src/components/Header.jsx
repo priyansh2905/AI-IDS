@@ -13,7 +13,7 @@ export default function Header({ onSync }) {
         </div>
         <div>
           <h1 className="text-xl font-extrabold tracking-wider bg-gradient-to-r from-indigo-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent uppercase">
-            Antigravity AI-HIDS
+            AI-HIDS
           </h1>
           <span className="text-xs text-gray-400 font-mono">HOST INTRUSION DETECTION SYSTEM • V1.0.0</span>
         </div>

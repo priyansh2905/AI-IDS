@@ -118,10 +118,10 @@ export default function Groups() {
   };
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 min-w-0">
+    <div className="flex-1 flex flex-col lg:flex-row gap-6 min-w-0">
       
       {/* LEFT SIDEBAR: CREATING, SEARCHING & MY GROUPS (5/12 cols) */}
-      <div className="lg:w-[420px] flex flex-col gap-6 shrink-0 min-h-0">
+      <div className="lg:w-[420px] flex flex-col gap-6 shrink-0">
         
         {/* CREATE GROUP FORM */}
         <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex flex-col gap-4">
@@ -214,7 +214,7 @@ export default function Groups() {
         </section>
 
         {/* MY GROUPS LIST */}
-        <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex-1 flex flex-col gap-4 min-h-0">
+        <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex flex-col gap-4">
           <div>
             <h2 className="text-sm font-extrabold tracking-wider uppercase text-gray-200 font-mono">My Group Connections</h2>
             <p className="text-[10px] text-gray-500 font-mono mt-0.5">Active groups you are authenticated to monitor</p>
@@ -279,7 +279,7 @@ export default function Groups() {
       </div>
 
       {/* RIGHT COLUMN: GROUP DIRECTORY & APPROVALS (7/12 cols) */}
-      <div className="flex-1 flex flex-col gap-6 min-h-0">
+      <div className="flex-1 flex flex-col gap-6">
         
         {/* RECEIVED GROUP INVITATIONS */}
         {invitedGroups.length > 0 && (
@@ -372,7 +372,7 @@ export default function Groups() {
         </section>
 
         {/* PUBLIC GROUP DIRECTORY */}
-        <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex-1 flex flex-col gap-4">
+        <section className="bg-slate-900/40 border border-white/5 rounded-xl p-5 shadow-lg flex flex-col gap-4">
           <div>
             <h2 className="text-sm font-extrabold tracking-wider uppercase text-gray-200 font-mono">Global Group Directory</h2>
             <p className="text-[10px] text-gray-500 font-mono mt-0.5">Browse and request connections to collaborative security cells</p>
