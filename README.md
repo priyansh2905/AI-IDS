@@ -8,7 +8,9 @@ An advanced, hybrid Host Intrusion Detection System (HIDS) combining real-time s
 ---
 ## 🔗 Live Deployment
 🚀 You can access the live dashboard deployment here:
-**👉 [AI-HIDS Dashboard Live Demo](https://ai-hids-frontend.onrender.com) 👈**
+``` **👉 [AI-HIDS Dashboard Live Demo](https://ai-hids-frontend.onrender.com) 👈**
+```
+**👉 [AI-HIDS Dashboard Live Demo](http://127.0.0.1:5173/) 👈**
 ---
 ## 🏗️ Architecture Overview
 The system is composed of four distinct components working in synchrony:
